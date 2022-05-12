@@ -1,68 +1,36 @@
 # Simulating Emergent Behavior
 
-## Genes
+I've found plenty of fantastic genetic algorithm implementations out there (see: [Life Simulator](https://life-simulator.netlify.app/) and [this video](https://youtu.be/N3tRFayqVtk) by David Miller). There's a number of markedly different approaches out there. Some represent creatures as a series of cells, while others keep the creature simple while instead evolving their behavior. This is my take on the latter. The goal is to turn a string of numbers (the creature's *genome*) and turn it into a series of interconnected neurons that dictate the organism's behavior based on external stimuli[^1]. Then, over many generations, mutations in the genome will lead to creatures that interact in a quasi-intelligent manner.
 
-Genes are 8-bit unsigned integers. 
-A genome, or collection of genes, is the blueprint for an agent's brain. 
-This brain consists of nodes and connections between them. 
-Genes define both.
+For example, from the following genome...  
+`10000001 11000100 00000100 10000000 01010110 10101110 01100001 00000001 00100000 11010010 10000010 10000010 10011111`
 
-The gene's most significant bit determines what it will represent.
+...we can construct a creature with a 'brain' that looks like this:
+<img src="/images/01.png" alt="a simple brain" width="50%"/>
 
-### Nodes
+Some assumptions can be made about this creature's behavior (it appears to dislike noise and move towards food), but the 'logic' behind its choices becomes obfuscated as the size of its brain increases.
 
-Genes can encode three types of nodes. Each serves a purpose, and in general are arranged from Sensory to Internal to Action.
+## Evolution
 
-#### Sensory
+The simulation runs generation by generation. At the end of each generation, the 'fitness' of each creature is assessed, and the most successful organisms produce offspring. However, these offspring are not just copies of their parent. Mutations occur frequently, and over the course of generations, better and better survival tactics emerge (in theory).
 
-Generates a value based on the world around it.
-Ignores inputs.
-
-```
- 0 0 0 X X X X X
-       └──┬────┘
-          Defines which sense it represents
-```
-
-#### Action
-
-Averages its inputs to produce a weight that represents the desirability of the action. 
-Nodes of this type are calculated each turn and agent takes the action with the highest weight.
-
-```
- 0 0 1 X X X X X
-       └──┬────┘
-          Defines which action it represents
-```
-
-#### Internal
-
-Each of these nodes has a 'bias' value associated with it. 
-After averaging its inputs, the internal node multiplies the result by its bias and outputs it.
-
-```
- 0 1 X X X X X X
-     └────┬────┘
-          Represents the node's bias
-           The value is normalized as a float between 0 and 2.
-```
-
-### Connections
-
-Connections are links between nodes.
-When a gene's most significant bit is 1, it represents a connection.
-Each of these genes encode one side of the connection, so they are read in pairs.
-
-```
- [ 1 X X X X X X X ]    [ 1 _ X X X X X X ]
-     │ └────┬────┘          │ └────┬────┘
-     │     Input index      │     Output index
-     Connection sign        Ignored
-```
-
-Note that these genes don't need to be adjacent in the genome.
-Connection indices are reduced to correspond to a node in the array.
-
-#### Additive or subtractive
-The connection sign, indicated by the second most significant bit of the input gene, determines if the connection is additive or subtractive. 
-Negative connections inhibit the signal they propagate.
+[^1]: Genes code for nuerons and the connections between them.
+  Here's how nodes are processed:
+  ```
+  0 0 X X X X X X
+    │ │ └──┬────┘
+    │ │    type of nueron
+    │ sense/action
+    if 1, represents an internal node
+    (remaining bits encode the node's bias)
+  ``` 
+  Connections work a little differently.
+  It takes two genes to encode a connection.
+  The first is the input node's index, the second is the output's.
+  ```
+  1 X X X X X X X
+    │ └───┬─────┘
+    │     node index
+    inhibitory/additive connection
+  ``` 
+  Inhibitory connections weaken their output node's signal, additive strengthens it.
