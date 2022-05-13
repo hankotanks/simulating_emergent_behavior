@@ -5,7 +5,7 @@ I've found plenty of fantastic genetic algorithm implementations out there (see:
 For example, from the following genome...  
 `10000001 11000100 00000100 10000000 01010110 10101110 01100001 00000001 00100000 11010010 10000010 10000010 10011111`
 
-...we can construct a creature with a 'brain' that looks like this:
+We can construct a creature with a 'brain' that looks like this:
 
 <img src="./images/01.png" alt="a simple brain" width=40% height=40%>
 
