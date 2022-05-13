@@ -6,6 +6,7 @@ For example, from the following genome...
 `10000001 11000100 00000100 10000000 01010110 10101110 01100001 00000001 00100000 11010010 10000010 10000010 10011111`
 
 ...we can construct a creature with a 'brain' that looks like this:
+
 <img src="./images/01.png" alt="a simple brain" width=50% height=50%>
 
 Some assumptions can be made about this creature's behavior (it appears to dislike noise and move towards food), but the 'logic' behind its choices becomes obfuscated as the size of its brain increases.
