@@ -7,9 +7,9 @@ For example, from the following genome...
 
 We can construct a creature with a 'brain' that looks like this:
 
-<img src="./images/01.png" alt="a simple brain" width=40% height=40%>
+<kbd><img src="./images/01.png" alt="a simple brain" width=40% height=40%></kbd>
 
-Some assumptions can be made about this creature's behavior (it appears to dislike noise and move towards food), but the 'logic' behind its choices becomes obfuscated as the size of its brain increases.
+Some assumptions can be made about this creature's behavior (it appears to dislike noise and move towards food), but the logic behind its choices becomes obfuscated as the size of its brain increases.
 
 ## Evolution
 
