@@ -27,13 +27,14 @@ enum _NodeType {
     Internal
 }
 
+#[derive(Clone)]
 pub(crate) struct Agent {
     brain: graph::Graph<Node, bool>,
     genome: Vec<Gene>
 }
 
 impl Agent {
-    pub(crate) fn new(genome: Vec<Gene>) -> Self {
+    pub(crate) fn new(genome: Vec<Gene>) -> Result<Self, std::io::Error> {
         use GeneParse::*;
         let mut brain: graph::Graph<Node, bool> = graph::Graph::new();
 
@@ -51,6 +52,9 @@ impl Agent {
         for i in 0..(edges.len() / 2) {
             if let GeneParse::Connection(a, inverted) = &edges[i * 2] {
                 if let GeneParse::Connection(b, ..) = &edges[i * 2 + 1] {
+                    if brain.node_count() == 0 {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "Invalid Genome"));
+                    }
                     let a = (*a % brain.node_count()) as u32;
                     let b = (*b % brain.node_count()) as u32;
 
@@ -66,7 +70,7 @@ impl Agent {
 
         a.prune();
         a.brain.shrink_to_fit();
-        a
+        Ok(a)
     }
 
     fn prune(&mut self) {
@@ -164,18 +168,13 @@ impl Agent {
         }
     }
 
-    pub(crate) fn from_string(data: &str) -> Self {
+    pub(crate) fn from_string(data: &str) -> Result<Self, std::io::Error> {
         Self::new(crate::gene::Genome::from_string(data))
     }
 
-    pub(crate) fn from_seed(size: usize, seed: Option<u64>) -> Self {
-        let mut prng: rand::rngs::StdRng = match seed {
-            Some(s) => rand::SeedableRng::seed_from_u64(s),
-            None => rand::SeedableRng::from_entropy()
-        };
-
+    pub(crate) fn from_seed(complexity: usize, prng: &mut rand::rngs::StdRng) -> Result<Self, std::io::Error> {
         let mut genome: Vec<Gene> = Vec::new();
-        for _ in 0..size {
+        for _ in 0..complexity {
             genome.push(Gene::new(prng.gen_range(0..=255)));
         }
 

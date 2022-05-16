@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use strum::IntoEnumIterator;
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub(crate) struct Gene(pub(crate) u8);
 
 impl Gene {
