@@ -7,7 +7,7 @@ For example, from the following genome...
 
 We can construct a creature with a 'brain' that looks like this:
 
-<kbd><img src="./images/01.png" alt="a simple brain" width=40% height=40%></kbd>
+<kbd><img src="./images/01.png" alt="a simple brain" width="40%" align="middle"></kbd>
 
 Some assumptions can be made about this creature's behavior (it appears to dislike noise and move towards food), but the logic behind its choices becomes obfuscated as the size of its brain increases.
 
@@ -19,7 +19,7 @@ The simulation runs generation by generation. At the end of each generation, the
 
 #### Genes
 
-Genes code for nuerons and the connections between them.  
+Genes code for neurons and the connections between them.  
 Here's how nodes are processed:
 ```
 0 0 X X X X X X
