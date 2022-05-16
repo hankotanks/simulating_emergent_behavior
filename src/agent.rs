@@ -164,7 +164,7 @@ impl Agent {
     }
 
     pub(crate) fn from_string(data: &str) -> Self {
-        Self::new(Gene::from_string(data))
+        Self::new(crate::gene::Genome::from_string(data))
     }
 }
 

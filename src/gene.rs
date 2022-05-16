@@ -37,16 +37,11 @@ impl Gene {
         self.0 ^= 1u8.rotate_left(rand::thread_rng().gen_range(0..8));
     }
 
-    pub(crate) fn from_string(data: &str) -> Vec<Self> {
-        let mut genome: Vec<Self> = Vec::new();
-        for g in data.split(" ") {
-            match u8::from_str_radix(g, 2) {
-                Ok(d) => genome.push(Gene::new(d)),
-                _ => panic!()
-            }
+    pub(crate) fn from_string(data: &str) -> Self {
+        match u8::from_str_radix(data, 2) {
+            Ok(d) => Gene::new(d),
+            _ => panic!()
         }
-
-        genome
     }
 }
 
@@ -77,6 +72,19 @@ impl Gene {
 impl fmt::Display for Gene {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:08b}", self.0)
+    }
+}
+
+pub(crate) struct Genome;
+
+impl Genome {
+    pub(crate) fn from_string(data: &str) -> Vec<Gene> {
+        let mut genome: Vec<Gene> = Vec::new();
+        for g in data.split(" ") {
+            genome.push(Gene::from_string(g));
+        }
+
+        genome
     }
 }
 
