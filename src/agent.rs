@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use petgraph::graph;
 use petgraph::Direction;
 use petgraph::graph::NodeIndex;
+use rand::Rng;
 
 use crate::gene::Gene;
 use crate::gene::GeneParse;
@@ -165,6 +166,20 @@ impl Agent {
 
     pub(crate) fn from_string(data: &str) -> Self {
         Self::new(crate::gene::Genome::from_string(data))
+    }
+
+    pub(crate) fn from_seed(size: usize, seed: Option<u64>) -> Self {
+        let mut prng: rand::rngs::StdRng = match seed {
+            Some(s) => rand::SeedableRng::seed_from_u64(s),
+            None => rand::SeedableRng::from_entropy()
+        };
+
+        let mut genome: Vec<Gene> = Vec::new();
+        for _ in 0..size {
+            genome.push(Gene::new(prng.gen_range(0..=255)));
+        }
+
+        Self::new(genome)
     }
 }
 
