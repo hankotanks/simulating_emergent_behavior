@@ -34,6 +34,40 @@ impl Facing {
         use Facing::*;
         vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
     }
+
+    pub(crate) fn get_transform(&self, x: usize, y: usize, height: usize, width: usize) -> Option<(usize, usize)> {
+        use Facing::*;
+        return match self {
+            Up => {
+                if y == 0 {
+                    None
+                } else {
+                    Some((x, y - 1))
+                }
+            },
+            Down => {
+                if y >= height - 1 {
+                    None
+                } else {
+                    Some((x, y + 1))
+                }
+            },
+            Left => {
+                if x == 0 {
+                    None
+                } else {
+                    Some((x - 1, y))
+                }
+            },
+            Right => {
+                if x >= width - 1 {
+                    None
+                } else {
+                    Some((x + 1, y))
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
