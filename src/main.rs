@@ -1,16 +1,18 @@
 mod gene;
 mod agent;
 mod universe;
+mod simulation;
 
-fn main() {
-    /*
-    let sample = agent::Agent::from_seed(64, None);
-    if let Some(t) = sample.resolve() {
-        println!("{:?}\n", t);
-    }
+use iced::Application;
+use iced::window;
 
-    println!("{}", sample);
-     */
-
-    let _u = universe::Universe::new((3, 3), 2, 4, None);
+pub fn main() -> iced::Result {
+    simulation::SimulationInterface::run(iced::Settings {
+        antialiasing: true,
+        window: window::Settings {
+            position: window::Position::Centered,
+            ..window::Settings::default()
+        },
+        ..iced::Settings::default()
+    })
 }

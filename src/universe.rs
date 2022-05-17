@@ -1,4 +1,6 @@
 use rand::Rng;
+use std::fmt;
+use std::fmt::Formatter;
 use crate::agent::Agent;
 
 #[derive(Clone)]
@@ -8,6 +10,18 @@ pub(crate) enum Cell {
     Agent(Agent)
 }
 
+impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let c = self.clone();
+        match c {
+            Cell::Empty => write!(f, "{}", c),
+            Cell::Food(count) => write!(f, "Food: {}", count),
+            Cell::Agent(agent) => write!(f, "{}", agent)
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct Universe(Vec<Vec<Cell>>);
 
 // helper methods
@@ -20,8 +34,8 @@ impl Universe {
         self.0.len()
     }
 
-    pub(crate) fn get(&self, x: usize, y: usize) -> Cell {
-        self.0[y][x].clone()
+    pub(crate) fn get(&self, x: usize, y: usize) -> &Cell {
+        &self.0[y][x]
     }
 }
 
