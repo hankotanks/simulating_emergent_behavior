@@ -34,7 +34,6 @@ impl Universe {
                                 },
                                 Err(..) => continue 'occupied
                             }
-
                         }
                     }
                 }
