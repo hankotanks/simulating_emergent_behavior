@@ -2,13 +2,28 @@ use rand::Rng;
 use crate::agent::Agent;
 
 #[derive(Clone)]
-enum Cell {
+pub(crate) enum Cell {
     Empty,
     Food(usize),
     Agent(Agent)
 }
 
 pub(crate) struct Universe(Vec<Vec<Cell>>);
+
+// helper methods
+impl Universe {
+    pub(crate) fn width(&self) -> usize {
+        self.0[0].len()
+    }
+
+    pub(crate) fn height(&self) -> usize {
+        self.0.len()
+    }
+
+    pub(crate) fn get(&self, x: usize, y: usize) -> Cell {
+        self.0[y][x].clone()
+    }
+}
 
 impl Universe {
     pub(crate) fn new(dimensions: (usize, usize), agents: usize, complexity: usize, seed: Option<u64>) -> Self {
