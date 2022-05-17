@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use petgraph::graph;
 use petgraph::Direction;
 use petgraph::graph::NodeIndex;
-use rand::Rng;
+use rand::{Rng, thread_rng};
 
 use crate::gene::Gene;
 use crate::gene::GeneParse;
@@ -21,16 +21,26 @@ impl fmt::Display for Node {
     }
 }
 
-enum _NodeType {
-    Sense,
-    Action,
-    Internal
+#[derive(Debug, Clone)]
+pub(crate) enum Facing {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
+impl Facing {
+    fn random() -> Facing {
+        use Facing::*;
+        vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
+    }
 }
 
 #[derive(Clone)]
 pub(crate) struct Agent {
     brain: graph::Graph<Node, bool>,
-    genome: Vec<Gene>
+    genome: Vec<Gene>,
+    pub(crate) facing: Facing
 }
 
 impl Agent {
@@ -65,7 +75,8 @@ impl Agent {
 
         let mut a = Self {
             brain,
-            genome
+            genome,
+            facing: Facing::random()
         };
 
         a.prune();
@@ -264,11 +275,13 @@ impl Agent {
 
 impl fmt::Display for Agent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "genome {{\n    {}\n}}\n\n{}", {
+        write!(f, "genome {{\n    {}\n}}\n\n{}\nfacing {{\n    {}\n}}\n", {
             self.genome.iter().fold(String::new(), |mut c, g| {
                 c.push_str(&*format!("{} ", g));
                 c
             })
-        }, petgraph::dot::Dot::new(&self.brain))
+        }, petgraph::dot::Dot::new(&self.brain),
+            format!("{:?}", self.facing)
+        )
     }
 }
