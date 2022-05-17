@@ -7,7 +7,7 @@ use iced::Application;
 use iced::window;
 
 pub fn main() -> iced::Result {
-    simulation::SimulationInterface::run(iced::Settings {
+    simulation::Simulation::run(iced::Settings {
         antialiasing: true,
         window: window::Settings {
             position: window::Position::Centered,
