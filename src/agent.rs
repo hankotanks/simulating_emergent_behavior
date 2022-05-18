@@ -7,6 +7,7 @@ use rand::{Rng, thread_rng};
 
 use crate::gene::Gene;
 use crate::gene::GeneParse;
+use crate::universe::Sense;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Node {
@@ -35,7 +36,7 @@ impl Facing {
         vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
     }
 
-    pub(crate) fn get_transform(&self, x: usize, y: usize, height: usize, width: usize) -> Option<(usize, usize)> {
+    pub(crate) fn _get_transform(&self, x: usize, y: usize, height: usize, width: usize) -> Option<(usize, usize)> {
         use Facing::*;
         return match self {
             Up => {
@@ -160,11 +161,11 @@ impl Agent {
         self.brain.node_count()
     }
 
-    pub(crate)fn resolve(&self) -> Option<crate::gene::ActionType> {
+    pub(crate)fn resolve(&self, sense: Sense) -> Option<crate::gene::ActionType> {
         let mut dominant: Option<(crate::gene::ActionType, f32)> = None;
         for index in self.brain.externals(Direction::Outgoing) {
             if let Node::Action(variant) = &self.brain[index] {
-                if let Some(weight) = self.resolve_node(index, &mut Vec::new()) {
+                if let Some(weight) = self.resolve_node(index, &sense, &mut Vec::new()) {
                     dominant = Some (
                         if let Some(highest) = dominant {
                             if weight > highest.1 {
@@ -185,7 +186,7 @@ impl Agent {
         }
     }
 
-    fn resolve_node(&self, index: NodeIndex, history: &mut Vec<NodeIndex>) -> Option<f32> {
+    fn resolve_node(&self, index: NodeIndex, sense: &Sense, history: &mut Vec<NodeIndex>) -> Option<f32> {
         // check if the node walk is self-referential
         // internal nodes return their bias as a constant
         if history.contains(&index) {
@@ -198,14 +199,14 @@ impl Agent {
 
         use Node::*;
         match &self.brain[index] {
-            Sense(_v) => {
-                Some(1f32)
+            Sense(variant) => {
+                Some(sense.get(variant))
             },
-            Action(_v) => {
-                self.average_neighbor_resolutions_directed(index, Direction::Incoming, 1f32, history)
+            Action(..) => {
+                self.average_neighbor_resolutions_directed(index, Direction::Incoming, 1f32, sense, history)
             },
             Internal(bias) => {
-                match self.average_neighbor_resolutions_directed(index, Direction::Incoming, *bias, history) {
+                match self.average_neighbor_resolutions_directed(index, Direction::Incoming, *bias, sense, history) {
                     Some(t) => Some(t),
                     None => Some(*bias)
                 }
@@ -239,7 +240,7 @@ impl Agent {
         }
     }
 
-    fn average_neighbor_resolutions_directed(&self, index: NodeIndex, dir: Direction, bias: f32, history: &mut Vec<NodeIndex>) -> Option<f32> {
+    fn average_neighbor_resolutions_directed(&self, index: NodeIndex, dir: Direction, bias: f32, sense: &Sense, history: &mut Vec<NodeIndex>) -> Option<f32> {
         if history.contains(&index) {
             return if let Node::Internal(bias) = self.brain[index] {
                 Some(bias)
@@ -265,7 +266,7 @@ impl Agent {
 
         match self.brain.neighbors_directed(index, dir).fold((0, 0f32), |(c, sum), r| {
 
-            if let Some(t) = self.resolve_node(r, history) {
+            if let Some(t) = self.resolve_node(r, sense, history) {
                 let mut t = t;
                 if let Some(b) = edge {
                     t *= if !b { 1f32 } else { -1f32 };

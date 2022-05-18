@@ -12,3 +12,4 @@ strum_macros = "0.24"
 petgraph = "0.6.0"
 iced = { features = ["canvas"] }
 iced_native = "*"
+fxhash = "0.2.1"

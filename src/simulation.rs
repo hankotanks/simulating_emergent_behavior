@@ -1,13 +1,13 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+
 use std::fmt::Formatter;
 
 use iced::{Color, Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
-
 use iced_native::event::Status;
 
-use crate::universe::{CellContents, Universe};
+use crate::universe::{Cell, Universe};
 
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
@@ -33,8 +33,8 @@ impl iced::Sandbox for Simulation {
 
     fn update(&mut self, message: Self::Message) {
         match message {
-            Message::TooltipChanged(tt) => {
-                self.description = tt;
+            Message::TooltipChanged(text) => {
+                self.description = text;
             },
             Message::TooltipClear => self.description = String::from("")
         }
@@ -63,13 +63,12 @@ pub(crate) enum Message {
     TooltipClear
 }
 
-// TODO: This is messy
 impl std::fmt::Debug for Message {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Message::TooltipChanged(contents) => write!(f, "{}", contents),
-            Message::TooltipClear => write!(f, "")
-        }
+        write!(f, "{}", match self {
+            Message::TooltipChanged(contents) => contents,
+            Message::TooltipClear => ""
+        })
     }
 }
 
@@ -90,11 +89,6 @@ impl UniverseInterface {
             cursor: None,
             should_redraw: false
         }
-    }
-
-    fn tick(&mut self) {
-        // TODO: Remove this test and properly implement UniverseInterface::tick
-        self.universe.as_ref().borrow_mut().cells[1][1].set_contents(CellContents::Food(10));
     }
 }
 
@@ -119,16 +113,16 @@ impl iced::canvas::Program<Message> for UniverseInterface {
         }
 
         return (Status::Ignored, match event {
-
             Mouse(event) => {
                 use iced::mouse::Event::*;
                 match event {
                     ButtonPressed(..) => None,
                     CursorMoved { position } => {
-                        if let Some(cursor) = self.cursor {
-                            let coords = self.cell_at(position);
-                            Some(Message::TooltipChanged(self.universe.as_ref().borrow().cells[coords.1][coords.0].get_tooltip()))
-
+                        if let Some(_cursor) = self.cursor {
+                                Some(match self.cell_at(position) {
+                                    Some(cell) => Message::TooltipChanged(cell.get_tooltip()),
+                                    None => Message::TooltipClear
+                                })
                         } else {
                             Some(Message::TooltipClear)
                         }
@@ -139,7 +133,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             Keyboard(event) => {
                 use iced::keyboard::Event::*;
                 if let KeyPressed { .. } = event {
-                    self.tick();
+                    self.universe.as_ref().borrow_mut().update();
                     self.should_redraw = true;
                     None
                 } else {
@@ -154,16 +148,13 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             frame.fill(&iced::canvas::Path::rectangle(Point::ORIGIN, frame.size()), Color::from_rgb8(0x40, 0x44, 0x4B));
 
             let u = self.universe.as_ref().borrow();
-
             let size = (bounds.width / u.dimensions.width as f32,
                         bounds.height / u.dimensions.height as f32);
 
-            for y in 0..u.dimensions.height {
-                for x in 0..u.dimensions.width {
-                    frame.fill_rectangle(Point::new(x as f32 * size.0, y as f32 * size.1), Size { width: size.0, height: size.1 }, iced::canvas::Fill::from(
-                        u.cells[y][x].color()
-                    ));
-                }
+            for cell in u.iter() {
+                frame.fill_rectangle(Point::new(cell.x as f32 * size.0, cell.y as f32 * size.1), Size { width: size.0, height: size.1 }, iced::canvas::Fill::from(
+                    cell.color()
+                ));
             }
         });
 
@@ -173,7 +164,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
 
 // helper methods
 impl UniverseInterface {
-    fn cell_at(&self, point: Point) -> (usize, usize) {
+    fn cell_at(&self, point: Point) -> Option<Cell> { // returns a copy of the cell at a given point on the canvas
         let bounds = self.bounds.unwrap();
 
         let u = self.universe.as_ref().borrow();
@@ -183,11 +174,11 @@ impl UniverseInterface {
         let y = (point.y /
             (bounds.height / u.dimensions.height as f32)) as usize;
 
-        (x, y)
-    }
-
-    fn cell_contents_at(&self, point: Point) -> Option<CellContents> {
-        let coords = self.cell_at(point);
-        self.universe.as_ref().borrow().cells[coords.1][coords.0].contents.clone()
+        match u.get(x, y) {
+            Some(cell) => {
+                Some(cell.clone())
+            },
+            None => None
+        }
     }
 }
