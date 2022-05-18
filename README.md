@@ -16,7 +16,7 @@ Some assumptions can be made about this creature's behavior (it appears to disli
 
 ## Evolution
 
-The simulation runs generation by generation. At the end of each generation, the 'fitness' of each creature is assessed, and the most successful organisms produce offspring. However, these offspring are not just copies of their parent. Mutations occur frequently, and over the course of generations, better and better survival tactics emerge (in theory).
+The simulation runs generation by generation according to a simple set of [rules](#simulation-rules). At the end of each generation, the 'fitness' of each creature is assessed, and the most successful organisms produce offspring. However, these offspring are not just copies of their parent. Mutations occur frequently, and over the course of generations, better and better survival tactics emerge (in theory).
 
 ***
 
@@ -44,3 +44,14 @@ inhibitory/additive connection
 ``` 
 
 Inhibitory connections weaken their output node's signal, additive strengthens it.
+
+#### Simulation Rules
+
+1. Every turn, each creature takes an action. The most fit creatures act first
+2. Fitness determines number of offspring
+3. Offspring have a chance to undergo mutations between generations
+4. Creatures cannot move through walls
+5. When a creature is killed, it becomes food
+6. Creatures that failed to eat food in the previous generation do not reproduce
+
+That's it
