@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
+use iced::Point;
 use rand::Rng;
 
 use crate::agent::Agent;
@@ -14,11 +15,7 @@ pub(crate) struct Cell {
 impl fmt::Display for Cell {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Cell @ ({}, {}): {}", self.x, self.y, match &self.contents {
-            Some(contents) => match contents {
-                CellContents::Food(amount) => format!("Food {}", amount),
-                CellContents::Agent(agent) => format!("Agent\n{}", agent),
-                CellContents::Wall => String::from("Wall")
-            },
+            Some(contents) => format!("{}", contents),
             None => String::from("Empty")
         })
     }
@@ -63,6 +60,19 @@ impl Cell {
             None => default_color
         }
     }
+
+    pub(crate) fn get_tooltip(&self) -> String {
+        match &self.contents {
+            Some(contents) => {
+                format!("{} @ ({}, {})", match contents {
+                    CellContents::Agent(agent) => format!("Agent ({:?})", agent.facing),
+                    CellContents::Food(amount) => format!("Food: {}", amount),
+                    CellContents::Wall => String::from("Wall")
+                }, self.x, self.y)
+            },
+            None => String::from("Empty")
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -70,6 +80,16 @@ pub(crate) enum CellContents {
     Food(u8),
     Agent(Agent),
     Wall
+}
+
+impl fmt::Display for CellContents {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            CellContents::Food(amount) => format!("Food {}", amount),
+            CellContents::Agent(agent) => format!("Agent\n{}", agent),
+            CellContents::Wall => String::from("Wall")
+        })
+    }
 }
 
 pub(crate) struct Universe {
