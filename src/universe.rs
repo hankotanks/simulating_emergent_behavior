@@ -147,8 +147,8 @@ impl Universe {
             match &self.cells.get(cell).unwrap().contents {
                 Agent(agent) => {
                     let sense = Sense::new(self, cell);
-                    if let Some(action) = agent.resolve(sense) {
-                        self.perform_action(action);
+                    if let Some(action) = agent.resolve(&sense) {
+                        self.perform_action(cell, action);
                     }
                 },
                 _ => {  }
@@ -157,7 +157,7 @@ impl Universe {
     }
 
     // TODO: Implement perform action
-    fn perform_action(&mut self, action: ActionType) {
+    fn perform_action(&mut self, cell: &Cell, action: ActionType) {
 
     }
 }

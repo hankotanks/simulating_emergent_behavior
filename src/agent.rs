@@ -161,11 +161,11 @@ impl Agent {
         self.brain.node_count()
     }
 
-    pub(crate)fn resolve(&self, sense: Sense) -> Option<crate::gene::ActionType> {
+    pub(crate)fn resolve(&self, sense: &Sense) -> Option<crate::gene::ActionType> {
         let mut dominant: Option<(crate::gene::ActionType, f32)> = None;
         for index in self.brain.externals(Direction::Outgoing) {
             if let Node::Action(variant) = &self.brain[index] {
-                if let Some(weight) = self.resolve_node(index, &sense, &mut Vec::new()) {
+                if let Some(weight) = self.resolve_node(index, sense, &mut Vec::new()) {
                     dominant = Some (
                         if let Some(highest) = dominant {
                             if weight > highest.1 {
