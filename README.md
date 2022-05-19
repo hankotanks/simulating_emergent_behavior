@@ -26,11 +26,11 @@ Genes code for neurons and the connections between them.
 Here's how nodes are processed:
 ```
 0 0 X X X X X X
-│ │ └──┬────┘
-│ │    type of nueron
-│ sense/action
-if 1, represents an internal node
-(remaining bits encode the node's bias)
+  │ │ └──┬────┘
+  │ │    type of nueron
+  │ sense/action
+  if 1, represents an internal node
+  (remaining bits encode the node's bias)
 ``` 
 
 Connections work a little differently.
@@ -38,9 +38,9 @@ It takes two genes to encode a connection.
 The first is the input node's index, the second is the output's.
 ```
 1 X X X X X X X
-│ └───┬─────┘
-│     node index
-inhibitory/additive connection
+  │ └───┬─────┘
+  │     node index
+  inhibitory/additive connection
 ``` 
 
 Inhibitory connections weaken their output node's signal, additive strengthens it.
