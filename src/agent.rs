@@ -198,19 +198,60 @@ impl Agent {
         }
 
         use Node::*;
+        let mut bias = 1f32;
         match &self.brain[index] {
             Sense(variant) => {
-                Some(sense.get(variant))
+                println!("Sense {}", sense.get(variant));
+                return Some(sense.get(variant))
             },
-            Action(..) => {
-                self.average_neighbor_resolutions_directed(index, Direction::Incoming, 1f32, sense, history)
-            },
-            Internal(bias) => {
-                match self.average_neighbor_resolutions_directed(index, Direction::Incoming, *bias, sense, history) {
-                    Some(t) => Some(t),
-                    None => Some(*bias)
-                }
+            Internal(b) => {
+                bias = *b;
             }
+            _ => {}
+        };
+
+        if history.contains(&index) {
+            return if let Node::Internal(bias) = self.brain[index] {
+                Some(bias)
+            } else {
+                None
+            }
+        }
+
+        // get the corresponding edge between the `index` node and its parent
+        let edge = match history.last() {
+            Some(&t) => {
+                match self.brain.find_edge(index, t) {
+                    Some(k) => {
+                        Some(self.brain[k])
+                    },
+                    None => None
+                }
+            },
+            None => None
+        };
+
+        history.push(index);
+
+        match self.brain.neighbors_directed(index, Direction::Incoming).fold((0, 0f32), |(c, sum), r| {
+            if let Some(t) = self.resolve_node(r, sense, history) {
+                let mut t = t;
+                if let Some(b) = edge {
+                    t *= if b { 1f32 } else { -1f32 };
+                }
+                (c + 1, sum + t)
+            } else {
+                (c, sum)
+            }
+        }) {
+            (0, ..) => {
+                if let Internal(..) = &self.brain[index] {
+                    Some(bias)
+                } else {
+                    None
+                }
+            },
+            (c, sum) => {println!("{}", sum / c as f32 * bias); Some(sum / c as f32 * bias)}
         }
     }
 
@@ -237,47 +278,6 @@ impl Agent {
                 },
                 None => break 'deletion
             }
-        }
-    }
-
-    fn average_neighbor_resolutions_directed(&self, index: NodeIndex, dir: Direction, bias: f32, sense: &Sense, history: &mut Vec<NodeIndex>) -> Option<f32> {
-        if history.contains(&index) {
-            return if let Node::Internal(bias) = self.brain[index] {
-                Some(bias)
-            } else {
-                None
-            }
-        }
-
-        // get the corresponding edge between the `index` node and its parent
-        let edge = match history.last() {
-            Some(&t) => {
-                match self.brain.find_edge(index, t) {
-                    Some(k) => {
-                        Some(self.brain[k])
-                    },
-                    None => None
-                }
-            },
-            None => None
-        };
-
-        history.push(index);
-
-        match self.brain.neighbors_directed(index, dir).fold((0, 0f32), |(c, sum), r| {
-
-            if let Some(t) = self.resolve_node(r, sense, history) {
-                let mut t = t;
-                if let Some(b) = edge {
-                    t *= if !b { 1f32 } else { -1f32 };
-                }
-                (c + 1, sum + t)
-            } else {
-                (c, sum)
-            }
-        }) {
-            (0, ..) => None,
-            (c, sum) => Some(sum / c as f32 * bias)
         }
     }
 
