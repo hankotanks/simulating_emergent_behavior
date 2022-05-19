@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
+use std::hash;
 use std::hash::Hasher;
 use rand::Rng;
 
@@ -8,6 +9,18 @@ use std::collections::hash_set::Iter;
 
 use crate::agent::Agent;
 use crate::gene::{ActionType, SenseType};
+
+struct Color(u8, u8, u8);
+
+impl Color {
+    fn get(&self) -> [f32; 3] {
+        [self.0 as f32 / 255f32, self.1 as f32 / 255f32, self.2 as f32 / 255f32]
+    }
+}
+
+const AGENT_COLOR: Color = Color(0x96, 0x64, 0xFF);
+const WALL_COLOR: Color = Color(0xFF, 0xFF, 0xFF);
+const FOOD_COLOR: Color = Color(0xFF, 0x64, 0x00);
 
 #[derive(Clone)]
 pub(crate) struct Cell {
@@ -30,7 +43,7 @@ impl PartialEq<Self> for Cell {
 
 impl Eq for Cell {}
 
-impl std::hash::Hash for Cell {
+impl hash::Hash for Cell {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.x.hash(state);
         self.y.hash(state);
@@ -48,17 +61,11 @@ impl Cell {
 
     pub(crate) fn color(&self) -> iced::Color {
         use iced::Color;
-
-        // TODO: This should be configurable
-        let agent_color: Color = Color::from_rgb8(0x96, 0x64, 0xFF);
-        let wall_color: Color = Color::from_rgb8(0xFF, 0xFF, 0xFF);
-        let food_color: Color = Color::from_rgb8(0xFF, 0x64, 0x00);
-
-        match &self.contents {
-            CellContents::Food(..) => food_color,
-            CellContents::Agent(..) => agent_color,
-            CellContents::Wall => wall_color
-        }
+        Color::from(match &self.contents {
+            CellContents::Food(..) => FOOD_COLOR,
+            CellContents::Agent(..) => AGENT_COLOR,
+            CellContents::Wall => WALL_COLOR
+        }.get())
     }
 
     pub(crate) fn get_tooltip(&self) -> String {
