@@ -201,7 +201,6 @@ impl Agent {
         let mut bias = 1f32;
         match &self.brain[index] {
             Sense(variant) => {
-                println!("Sense {}", sense.get(variant));
                 return Some(sense.get(variant))
             },
             Internal(b) => {
@@ -251,7 +250,7 @@ impl Agent {
                     None
                 }
             },
-            (c, sum) => {println!("{}", sum / c as f32 * bias); Some(sum / c as f32 * bias)}
+            (c, sum) => Some(sum / c as f32 * bias)
         }
     }
 
