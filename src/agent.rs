@@ -36,7 +36,7 @@ impl Facing {
         vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
     }
 
-    pub(crate) fn _get_transform(&self, x: usize, y: usize, height: usize, width: usize) -> Option<(usize, usize)> {
+    pub(crate) fn transform(&self, x: usize, y: usize, dimensions: iced::Size<usize>) -> Option<(usize, usize)> {
         use Facing::*;
         return match self {
             Up => {
@@ -47,7 +47,7 @@ impl Facing {
                 }
             },
             Down => {
-                if y >= height - 1 {
+                if y >= dimensions.height - 1 {
                     None
                 } else {
                     Some((x, y + 1))
@@ -61,12 +61,35 @@ impl Facing {
                 }
             },
             Right => {
-                if x >= width - 1 {
+                if x >= dimensions.width - 1 {
                     None
                 } else {
                     Some((x + 1, y))
                 }
             }
+        }
+    }
+
+    pub(crate) fn turn(&self, direction: Facing) -> Facing {
+        use Facing::*;
+        match direction {
+            Left => {
+                match self {
+                    Up => Left,
+                    Down => Right,
+                    Left => Down,
+                    Right => Up
+                }
+            },
+            Right => {
+                match self {
+                    Up => Right,
+                    Down => Left,
+                    Left => Up,
+                    Right => Down
+                }
+            },
+            _ => unreachable!()
         }
     }
 }
@@ -181,7 +204,7 @@ impl Agent {
         }
 
         match dominant {
-            Some(t) => Some(t.0),
+            Some(t) => if t.1 > 0f32 { Some(t.0) } else { None },
             None => None
         }
     }

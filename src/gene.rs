@@ -98,8 +98,7 @@ pub(crate) enum GeneParse {
 
 #[derive(Debug, Clone, strum_macros::EnumIter)]
 pub(crate) enum SenseType {
-    Blocked, // if a wall is in front of agent
-    Noise,
+    Blocked,
     Agent,
     AgentDensity,
     Food,
@@ -113,7 +112,6 @@ pub(crate) enum ActionType {
     TurnLeft,
     TurnRight,
     Eat,
-    MakeNoise,
     Kill,
     ProduceFood,
 }

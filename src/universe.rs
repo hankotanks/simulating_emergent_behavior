@@ -156,9 +156,82 @@ impl Universe {
         }
     }
 
-    // TODO: Implement perform action
     fn perform_action(&mut self, cell: &Cell, action: ActionType) {
+        if let CellContents::Agent(agent) = &cell.contents {
+            use ActionType::*;
+            match action {
+                Move => {
+                    if let Some(transform) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
+                        if let None = self.get(transform.0, transform.1) {
+                            let mut n = cell.clone();
 
+                            self.cells.remove(cell);
+
+                            n.x = transform.0;
+                            n.y = transform.1;
+
+                            self.cells.insert(n);
+                        }
+                    }
+
+                },
+                TurnRight | TurnLeft => {
+                    let d = agent.facing.turn(match action {
+                        TurnLeft => crate::agent::Facing::Left,
+                        TurnRight => crate::agent::Facing::Right,
+                        _ => unreachable!()
+                    });
+
+                    let mut n = cell.clone();
+                    self.cells.remove(cell);
+                    let mut a = agent.clone();
+                    a.facing = d;
+
+                    n.contents = CellContents::Agent(a);
+
+                    self.cells.insert(n);
+
+                },
+                Eat => {
+                    if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
+                        if let Some(target) = self.get(coord.0, coord.1) {
+                            if let CellContents::Food(amount) = target.contents {
+                                let mut n = target.clone();
+                                n.contents = CellContents::Food(amount - 1);
+                                self.cells.insert(n);
+                            }
+                        }
+                    }
+                },
+                ProduceFood => {
+                    if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
+                        if let Some(target) = self.get(coord.0, coord.1) {
+                            if let CellContents::Food(amount) = target.contents {
+                                let mut n = target.clone();
+                                self.cells.remove(&n);
+                                n.contents = CellContents::Food(amount + 1);
+                                self.cells.insert(n);
+                            }
+                        } else {
+                            self.cells.insert(
+                                Cell { x: coord.0, y: coord.1, contents: CellContents::Food(1) }
+                            );
+                        }
+                    }
+                },
+                Kill => {
+                    if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
+                        if let Some(target) = self.get(coord.0, coord.1) {
+                            if let CellContents::Agent(..) = target.contents {
+                                self.cells.insert(
+                                    Cell { x: coord.0, y: coord.1, contents: CellContents::Food(1) }
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

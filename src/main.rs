@@ -16,3 +16,5 @@ pub fn main() -> iced::Result {
         ..iced::Settings::default()
     })
 }
+
+// TODO: Universe should wrap from opposite edges

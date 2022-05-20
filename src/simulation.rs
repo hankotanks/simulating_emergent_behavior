@@ -21,7 +21,7 @@ impl iced::Sandbox for Simulation {
         Self {
             universe: {
                 let size: Size<usize> = Size::new(32, 16);
-                Rc::new(RefCell::new(Universe::new(size, 8, 64, None)))
+                Rc::new(RefCell::new(Universe::new(size, 64, 64, None)))
             },
             description: String::from("")
         }
@@ -118,7 +118,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                 match event {
                     ButtonPressed(..) => None,
                     CursorMoved { position } => {
-                        if let Some(_cursor) = self.cursor {
+                        if let Some(..) = self.cursor {
                                 Some(match self.cell_at(position) {
                                     Some(cell) => Message::TooltipChanged(cell.get_tooltip()),
                                     None => Message::TooltipClear
