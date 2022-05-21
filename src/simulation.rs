@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 
 use iced::{Color, Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
-use iced_native::event::Status;
+use iced::widget::canvas::event::Status;
 
 use crate::universe::{Cell, Universe};
 

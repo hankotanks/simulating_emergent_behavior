@@ -48,10 +48,10 @@ Inhibitory connections weaken their output node's signal, additive strengthens i
 #### Simulation Rules
 
 1. Every turn, each creature takes an action. The most fit creatures act first
-2. Fitness determines number of offspring
-3. Offspring have a chance to undergo mutations between generations
+2. Fitness determines chance of reproduction
+3. Offspring have a chance to undergo mutations, differentiating them from their parent
 4. Creatures cannot move through walls
 5. When a creature is killed, it becomes food
-6. Creatures that failed to eat food in the previous generation do not reproduce
+6. Eating increases fitness, failure to eat over time leads to death
 
 That's it
