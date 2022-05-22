@@ -98,7 +98,7 @@ impl Facing {
 pub(crate) struct Agent {
     brain: graph::Graph<Node, bool>,
     genome: Vec<Gene>,
-    pub(crate) fitness: usize,
+    pub(crate) fitness: u8,
     pub(crate) facing: Facing,
 }
 
@@ -135,7 +135,7 @@ impl Agent {
         let mut a = Self {
             brain,
             genome,
-            fitness: 0usize,
+            fitness: 0u8,
             facing: Facing::random()
         };
 
@@ -279,7 +279,18 @@ impl Agent {
         }
     }
 
-    pub(crate) fn from_string(data: &str) -> Result<Self, std::io::Error> {
+    // TODO: Tidy up this method
+    pub(crate) fn mutate(&self) -> String {
+        let mut g = self.genome.clone();
+        g[thread_rng().gen_range(0..self.genome.len())].mutate();
+
+        g.iter().fold("".to_owned(), |mut genome: String, current| {
+            genome.push_str(&*format!("{}", current));
+            genome
+        })
+    }
+
+    pub(crate) fn from_string(data: String) -> Result<Self, std::io::Error> {
         Self::new(crate::gene::Genome::from_string(data))
     }
 

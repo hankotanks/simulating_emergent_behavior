@@ -37,10 +37,10 @@ impl Gene {
         self.0 ^= 1u8.rotate_left(rand::thread_rng().gen_range(0..8));
     }
 
-    pub(crate) fn from_string(data: &str) -> Self {
+    pub(crate) fn from_string(data: &str) -> Result<Self, std::io::Error> {
         match u8::from_str_radix(data, 2) {
-            Ok(d) => Gene::new(d),
-            _ => panic!()
+            Ok(d) => Ok(Gene::new(d)),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::Other, ""))
         }
     }
 }
@@ -78,10 +78,13 @@ impl fmt::Display for Gene {
 pub(crate) struct Genome;
 
 impl Genome {
-    pub(crate) fn from_string(data: &str) -> Vec<Gene> {
+    pub(crate) fn from_string(data: String) -> Vec<Gene> {
         let mut genome: Vec<Gene> = Vec::new();
         for g in data.split(" ") {
-            genome.push(Gene::from_string(g));
+            match Gene::from_string(g) {
+                Ok(gene) => genome.push(gene),
+                Err(..) => {  }
+            }
         }
 
         genome

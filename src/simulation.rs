@@ -20,8 +20,8 @@ impl iced::Sandbox for Simulation {
     fn new() -> Self {
         Self {
             universe: {
-                let size: Size<usize> = Size::new(512, 256);
-                Rc::new(RefCell::new(Universe::new(size, 2048, 64, None)))
+                let size: Size<usize> = Size::new(8, 8);
+                Rc::new(RefCell::new(Universe::new(size, 16, 64, None)))
             },
             description: String::from("")
         }
@@ -94,14 +94,18 @@ impl UniverseInterface {
 
         u.update();
 
-        let mut fittest: Option<&crate::agent::Agent> = None;
+        let mut maximum: u8 = 0;
+        let mut fittest: Option<&Cell> = None;
         for cell in u.iter() {
             if let crate::universe::CellContents::Agent(agent) = &cell.contents {
                 match fittest {
-                    None => fittest = Some(agent),
+                    None => fittest = Some(cell),
                     Some(current) => {
-                        if agent.fitness > current.fitness {
-                            fittest = Some(agent)
+                        if let crate::universe::CellContents::Agent(c) = &current.contents {
+                            if agent.fitness > c.fitness {
+                                fittest = Some(cell);
+                                maximum = c.fitness;
+                            }
                         }
                     }
                 }
@@ -109,7 +113,9 @@ impl UniverseInterface {
         }
 
         println!("{}", fittest.unwrap());
-        println!("{}", fittest.unwrap().fitness);
+        println!("{}", maximum);
+
+        // TODO: Agent fitness influences chance of offspring
     }
 }
 
@@ -137,7 +143,18 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             Mouse(event) => {
                 use iced::mouse::Event::*;
                 match event {
-                    ButtonPressed(..) => None,
+                    ButtonPressed(..) => {
+                        if let Some(..) = self.cursor {
+                            match self.cell_at(cursor.position().unwrap()) {
+                                Some(cell) => {
+                                    println!("{}", cell);
+                                },
+                                None => {  }
+                            }
+                        }
+
+                        None
+                    },
                     CursorMoved { position } => {
                         if let Some(..) = self.cursor {
                                 Some(match self.cell_at(position) {

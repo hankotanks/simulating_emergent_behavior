@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::hash;
 use std::hash::Hasher;
-use rand::Rng;
+use rand::{Rng, thread_rng};
 
 use fxhash::FxHashSet;
 use std::collections::hash_set::Iter;
@@ -146,6 +146,41 @@ impl Universe {
         for cell in self.cells.clone().iter() {
             match &cell.contents {
                 Agent(agent) => {
+                    if thread_rng().gen_range(0..255) < agent.fitness {
+                        use crate::agent::Facing::*;
+                        let coords = match agent.facing {
+                            Up => Down,
+                            Down => Up,
+                            Left => Right,
+                            Right => Left
+                        }.transform(cell.x, cell.y, self.dimensions);
+
+                        if let Some(coords) = coords {
+                            if let None = self.get(coords.0, coords.1) {
+                                let mut c = Cell::new(coords.0, coords.1);
+                                match crate::agent::Agent::from_string(agent.mutate()) {
+                                    Ok(child) => {
+                                        c.contents = Agent(child);
+                                        self.cells.insert(c);
+
+                                        let mut n = cell.clone();
+                                        self.cells.remove(&n);
+
+                                        let mut d = agent.clone();
+                                        d.fitness = 0;
+
+                                        n.contents = Agent(d);
+
+                                        self.cells.insert(n);
+                                    },
+                                    Err(..) => {  }
+                                }
+                            }
+                        }
+
+
+                    }
+
                     let sense = Sense::new(self, cell);
                     if let Some(action) = agent.resolve(&sense) {
                         self.perform_action(cell, action);
@@ -178,15 +213,17 @@ impl Universe {
                                     let mut n = target.clone();
                                     self.cells.remove(&n);
 
-                                    let mut m = cell.clone();
-                                    self.cells.remove(&m);
+                                    if agent.fitness < 255 {
+                                        let mut m = cell.clone();
+                                        self.cells.remove(&m);
 
-                                    let mut d = agent.clone();
-                                    d.fitness += 1;
+                                        let mut d = agent.clone();
+                                        d.fitness += 1;
 
-                                    m.contents = CellContents::Agent(d);
+                                        m.contents = CellContents::Agent(d);
 
-                                    self.cells.insert(m);
+                                        self.cells.insert(m);
+                                    }
 
                                     if amount - 1 != 0 {
                                         n.contents = CellContents::Food(amount - 1);
