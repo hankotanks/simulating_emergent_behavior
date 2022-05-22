@@ -197,8 +197,19 @@ impl Universe {
                         if let Some(target) = self.get(coord.0, coord.1) {
                             if let CellContents::Food(amount) = target.contents {
                                 let mut n = target.clone();
-                                n.contents = CellContents::Food(amount - 1);
-                                self.cells.insert(n);
+                                self.cells.remove(&n);
+
+                                let mut m = cell.clone();
+                                let mut d = agent.clone();
+                                d.fitness += 1;
+                                m.contents = CellContents::Agent(d);
+
+                                self.cells.insert(m);
+
+                                if amount - 1 != 0 {
+                                    n.contents = CellContents::Food(amount - 1);
+                                    self.cells.insert(n);
+                                }
                             }
                         }
                     }
@@ -207,10 +218,12 @@ impl Universe {
                     if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
                         if let Some(target) = self.get(coord.0, coord.1) {
                             if let CellContents::Food(amount) = target.contents {
-                                let mut n = target.clone();
-                                self.cells.remove(&n);
-                                n.contents = CellContents::Food(amount + 1);
-                                self.cells.insert(n);
+                                if amount < 255 {
+                                    let mut n = target.clone();
+                                    self.cells.remove(&n);
+                                    n.contents = CellContents::Food(amount + 1);
+                                    self.cells.insert(n);
+                                }
                             }
                         } else {
                             self.cells.insert(
@@ -223,6 +236,7 @@ impl Universe {
                     if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
                         if let Some(target) = self.get(coord.0, coord.1) {
                             if let CellContents::Agent(..) = target.contents {
+                                self.cells.remove(&target.clone());
                                 self.cells.insert(
                                     Cell { x: coord.0, y: coord.1, contents: CellContents::Food(1) }
                                 );

@@ -20,8 +20,8 @@ impl iced::Sandbox for Simulation {
     fn new() -> Self {
         Self {
             universe: {
-                let size: Size<usize> = Size::new(32, 16);
-                Rc::new(RefCell::new(Universe::new(size, 64, 64, None)))
+                let size: Size<usize> = Size::new(512, 256);
+                Rc::new(RefCell::new(Universe::new(size, 2048, 64, None)))
             },
             description: String::from("")
         }
@@ -33,9 +33,7 @@ impl iced::Sandbox for Simulation {
 
     fn update(&mut self, message: Self::Message) {
         match message {
-            Message::TooltipChanged(text) => {
-                self.description = text;
-            },
+            Message::TooltipChanged(text) => self.description = text,
             Message::TooltipClear => self.description = String::from("")
         }
 
@@ -90,6 +88,29 @@ impl UniverseInterface {
             should_redraw: false
         }
     }
+
+    fn tick(&mut self) {
+        let mut u = self.universe.as_ref().borrow_mut();
+
+        u.update();
+
+        let mut fittest: Option<&crate::agent::Agent> = None;
+        for cell in u.iter() {
+            if let crate::universe::CellContents::Agent(agent) = &cell.contents {
+                match fittest {
+                    None => fittest = Some(agent),
+                    Some(current) => {
+                        if agent.fitness > current.fitness {
+                            fittest = Some(agent)
+                        }
+                    }
+                }
+            }
+        }
+
+        println!("{}", fittest.unwrap());
+        println!("{}", fittest.unwrap().fitness);
+    }
 }
 
 impl iced::canvas::Program<Message> for UniverseInterface {
@@ -133,7 +154,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             Keyboard(event) => {
                 use iced::keyboard::Event::*;
                 if let KeyPressed { .. } = event {
-                    self.universe.as_ref().borrow_mut().update();
+                    self.tick();
                     self.should_redraw = true;
                     None
                 } else {

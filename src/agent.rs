@@ -98,7 +98,8 @@ impl Facing {
 pub(crate) struct Agent {
     brain: graph::Graph<Node, bool>,
     genome: Vec<Gene>,
-    pub(crate) facing: Facing
+    pub(crate) fitness: usize,
+    pub(crate) facing: Facing,
 }
 
 impl Agent {
@@ -134,6 +135,7 @@ impl Agent {
         let mut a = Self {
             brain,
             genome,
+            fitness: 0usize,
             facing: Facing::random()
         };
 
