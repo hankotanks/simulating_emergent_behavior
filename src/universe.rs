@@ -144,7 +144,7 @@ impl Universe {
     pub(crate) fn update(&mut self) {
         use CellContents::*;
         for cell in self.cells.clone().iter() {
-            match &self.cells.get(cell).unwrap().contents {
+            match &cell.contents {
                 Agent(agent) => {
                     let sense = Sense::new(self, cell);
                     if let Some(action) = agent.resolve(&sense) {
@@ -162,15 +162,39 @@ impl Universe {
             match action {
                 Move => {
                     if let Some(transform) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
-                        if let None = self.get(transform.0, transform.1) {
-                            let mut n = cell.clone();
+                        match self.get(transform.0, transform.1) {
+                            None => {
+                                let mut n = cell.clone();
 
-                            self.cells.remove(cell);
+                                self.cells.remove(cell);
 
-                            n.x = transform.0;
-                            n.y = transform.1;
+                                n.x = transform.0;
+                                n.y = transform.1;
 
-                            self.cells.insert(n);
+                                self.cells.insert(n);
+                            },
+                            Some(target) => {
+                                if let CellContents::Food(amount) = target.contents {
+                                    let mut n = target.clone();
+                                    self.cells.remove(&n);
+
+                                    let mut m = cell.clone();
+                                    self.cells.remove(&m);
+
+                                    let mut d = agent.clone();
+                                    d.fitness += 1;
+
+                                    m.contents = CellContents::Agent(d);
+
+                                    self.cells.insert(m);
+
+                                    if amount - 1 != 0 {
+                                        n.contents = CellContents::Food(amount - 1);
+                                        self.cells.insert(n);
+                                    }
+                                }
+                            }
+
                         }
                     }
 
@@ -191,28 +215,6 @@ impl Universe {
 
                     self.cells.insert(n);
 
-                },
-                Eat => {
-                    if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {
-                        if let Some(target) = self.get(coord.0, coord.1) {
-                            if let CellContents::Food(amount) = target.contents {
-                                let mut n = target.clone();
-                                self.cells.remove(&n);
-
-                                let mut m = cell.clone();
-                                let mut d = agent.clone();
-                                d.fitness += 1;
-                                m.contents = CellContents::Agent(d);
-
-                                self.cells.insert(m);
-
-                                if amount - 1 != 0 {
-                                    n.contents = CellContents::Food(amount - 1);
-                                    self.cells.insert(n);
-                                }
-                            }
-                        }
-                    }
                 },
                 ProduceFood => {
                     if let Some(coord) = agent.facing.transform(cell.x, cell.y, self.dimensions) {

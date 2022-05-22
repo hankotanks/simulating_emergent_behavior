@@ -111,7 +111,6 @@ pub(crate) enum ActionType {
     Move,
     TurnLeft,
     TurnRight,
-    Eat,
     Kill,
     ProduceFood,
 }
