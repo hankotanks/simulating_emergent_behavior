@@ -1,25 +1,44 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::fmt;
+use std::fmt::Formatter;
 
 use iced::{Color, Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
+use crate::agent::Agent;
 
 use crate::universe::{CellContents, Coordinate, Universe};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) enum Message {
     TooltipChanged(String),
     TooltipClear,
-    DescriptionChanged(String),
+    DescriptionChanged(Agent),
+    DescriptionPanelChanged(String),
     DescriptionClear
+}
+
+impl fmt::Debug for Message {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use Message::*;
+        write!(f, "{}", {
+            match self {
+                DescriptionChanged(agent) => format!("Description changed to describe an {}", agent),
+                _ => format!("{:?}", self)
+            }
+        })
+    }
 }
 
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
-    description: String,
+    description: Option<Agent>,
     description_state: iced::scrollable::State,
-    tooltip: String
+    description_text: String,
+    tooltip: String,
+    inspection_digraph_button_state: iced::button::State,
+    inspection_genome_button_state: iced::button::State
 }
 
 impl iced::Sandbox for Simulation {
@@ -31,9 +50,12 @@ impl iced::Sandbox for Simulation {
                 let size: Size<usize> = Size::new(128, 128);
                 Rc::new(RefCell::new(Universe::new(size, 256, 64, None)))
             },
-            description: String::from(""),
+            description: None,
             description_state: iced::scrollable::State::new(),
-            tooltip: String::from("")
+            description_text: String::from(""),
+            tooltip: String::from(""),
+            inspection_digraph_button_state: iced::button::State::new(),
+            inspection_genome_button_state: iced::button::State::new()
         }
     }
 
@@ -45,8 +67,13 @@ impl iced::Sandbox for Simulation {
         match message {
             Message::TooltipChanged(tooltip_text) => self.tooltip = tooltip_text,
             Message::TooltipClear => self.tooltip = String::from(""),
-            Message::DescriptionChanged(description_text) => self.description = description_text,
-            Message::DescriptionClear => self.description = String::from("")
+            Message::DescriptionChanged(agent) => {
+                self.description = Some(agent);
+                self.description_text.clear();
+                self.description_state.snap_to(0f32);
+            },
+            Message::DescriptionClear => self.description = None,
+            Message::DescriptionPanelChanged(description_text) => self.description_text = description_text
         }
 
     }
@@ -60,20 +87,63 @@ impl iced::Sandbox for Simulation {
 
         let tt: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.tooltip.as_str(), iced::tooltip::Position::FollowCursor);
 
-        let desc = iced::Text::new(&*self.description)
+        iced::Row::new()
+            .push(tt)
+            .push(self.inspect())
+            .height(Length::Fill)
+            .width(Length::Fill)
+            .into()
+    }
+}
+
+impl Simulation {
+    fn inspect(&mut self) -> iced::Container<Message> {
+        use iced::Length;
+
+        let header = iced::Text::new(format!("{}", match &self.description {
+            Some(agent) => format!("{}", agent),
+            None => String::from("")
+        }))
+            .width(Length::Fill)
+            .height(Length::Shrink)
+            .horizontal_alignment(iced::alignment::Horizontal::Center);
+
+        let controls: iced::Row<Message> = iced::Row::new()
+            .push(
+                iced::Button::new(&mut self.inspection_genome_button_state, iced::Text::new("Genome")).on_press(Message::DescriptionPanelChanged(match &self.description {
+                    Some(agent) => agent.get_genome_string(),
+                    None => String::from("")
+                }))
+            )
+            .push(
+                iced::Button::new(&mut self.inspection_digraph_button_state, iced::Text::new("Brain")).on_press(Message::DescriptionPanelChanged(match &self.description {
+                    Some(agent) => agent.get_digraph(),
+                    None => String::from("")
+                }))
+            )
+            .height(Length::Shrink)
+            .width(Length::Fill)
+            .padding(iced::Padding::new(10));
+
+        let desc = iced::Text::new(&self.description_text)
             .width(Length::FillPortion(1u16))
             .height(Length::Fill);
         let desc = iced::Scrollable::new(&mut self.description_state)
             .push(desc)
             .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(iced::Padding::new(10));
+
+        let content = iced::Column::new()
+            .push(header)
+            .push(controls)
+            .push(desc)
+            .width(Length::Fill)
             .height(Length::Fill);
 
-        iced::Row::new()
-            .push(tt)
-            .push(desc)
-            .height(Length::Fill)
+        iced::Container::new(content)
             .width(Length::Fill)
-            .into()
+            .height(Length::Fill)
     }
 }
 
@@ -131,7 +201,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                                 Some(contents) => {
                                     use CellContents::*;
                                     Some(match contents {
-                                        Agent(agent) => Message::DescriptionChanged(format!("{}", agent)),
+                                        Agent(agent) => Message::DescriptionChanged(agent),
                                         _ => Message::DescriptionClear
                                     })
                                 },

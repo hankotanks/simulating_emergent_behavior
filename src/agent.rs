@@ -311,6 +311,14 @@ impl Agent {
 
         Self::new(genome)
     }
+
+    pub(crate) fn get_digraph(&self) -> String {
+        format!("{}", petgraph::dot::Dot::new(&self.brain))
+    }
+
+    pub(crate) fn get_genome_string(&self) -> String {
+        crate::gene::Genome::get(self.genome.clone(), Some("\n"))
+    }
 }
 
 impl Agent {
@@ -352,15 +360,11 @@ impl Agent {
 
 impl fmt::Display for Agent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "genome {{\n    {}\n}}\n\n{}\nfacing {{\n    {}\n}}\n\nfitness {{\n    {}\n}}\n", {
-                self.genome.iter().fold(String::new(), |mut c, g| {
-                    c.push_str(&*format!("{} ", g));
-                    c
-                })
-            },
-            petgraph::dot::Dot::new(&self.brain),
-            format!("{:?}", self.facing),
-            format!("{:?}", self.fitness)
-        )
+        write!(f, "Agent{}, facing {:?}", {
+            match &self.last_action {
+                Some(action) => format!(" ({:?})", action),
+                None => String::from("")
+            }
+        }, self.facing)
     }
 }

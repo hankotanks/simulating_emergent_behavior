@@ -79,12 +79,7 @@ impl fmt::Display for CellContents {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
             CellContents::Food(amount) => format!("Food ({})", amount),
-            CellContents::Agent(agent) => format!("Agent{}, facing {:?}", {
-                match &agent.last_action {
-                    Some(action) => format!(" ({:?})", action),
-                    None => String::from("")
-                }
-            }, agent.facing),
+            CellContents::Agent(agent) => format!("{}", agent),
             CellContents::Wall => String::from("Wall")
         })
     }
@@ -215,3 +210,5 @@ impl Sense {
         }
     }
 }
+
+// TODO: Universe has wrapping edges
