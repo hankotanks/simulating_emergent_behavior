@@ -23,26 +23,12 @@ The simulation runs generation by generation according to a simple set of [rules
 #### Genes
 
 Genes code for neurons and the connections between them.  
-Here's how nodes are processed:
-```
-0 0 X X X X X X
-  │ │ └──┬────┘
-  │ │    type of nueron
-  │ sense/action
-  if 1, represents an internal node
-  (remaining bits encode the node's bias)
-``` 
+Each gene is an 8-bit integer; the individual bits define the gene's role in the creation of its creature's brain.
 
-Connections work a little differently.
-It takes two genes to encode a connection.  
-The first is the input node's index, the second is the output's.
-```
-1 X X X X X X X
-  │ └───┬─────┘
-  │     node index
-  inhibitory/additive connection
-``` 
+<kbd><img src="./images/genes.png" alt="a simple brain" width="40%" align="middle"></kbd>
 
+It takes two 'connection' genes to define a connection.
+The first encodes the input node's index, the second points to the connection's target.
 Inhibitory connections weaken their output node's signal, additive strengthens it.
 
 #### Simulation Rules

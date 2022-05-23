@@ -1,13 +1,17 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use std::fmt::Formatter;
-
 use iced::{Color, Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
 use crate::universe::{CellContents, Coordinate, Universe};
+
+#[derive(Debug)]
+pub(crate) enum Message {
+    TooltipChanged(String),
+    TooltipClear
+}
 
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
@@ -53,20 +57,6 @@ impl iced::Sandbox for Simulation {
             .width(Length::Fill)
             .into()
 
-    }
-}
-
-pub(crate) enum Message {
-    TooltipChanged(String),
-    TooltipClear
-}
-
-impl std::fmt::Debug for Message {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Message::TooltipChanged(contents) => contents,
-            Message::TooltipClear => ""
-        })
     }
 }
 
@@ -120,7 +110,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                 match event {
                     ButtonPressed(..) => {
                         if let Some(..) = self.cursor {
-                            match self.cell_contents_at(cursor.position().unwrap()) {
+                            match self.contents_at(cursor.position().unwrap()) {
                                 Some(contents) => {
                                     println!("{}", contents);
                                 },
@@ -132,7 +122,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                     },
                     CursorMoved { position } => {
                         if let Some(..) = self.cursor {
-                                Some(match self.cell_contents_at(position) {
+                                Some(match self.contents_at(position) {
                                     Some(contents) => Message::TooltipChanged(format!("{}", contents)),
                                     None => Message::TooltipClear
                                 })
@@ -177,7 +167,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
 
 // helper methods
 impl UniverseInterface {
-    fn cell_contents_at(&self, point: Point) -> Option<CellContents> { // returns a copy of the cell at a given point on the canvas
+    fn contents_at(&self, point: Point) -> Option<CellContents> { // returns a copy of the cell's contents at a given point on the canvas
         let bounds = self.bounds.unwrap();
 
         let u = self.universe.as_ref().borrow();

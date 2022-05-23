@@ -34,7 +34,6 @@ impl Gene {
     }
 
     pub(crate) fn mutate(&mut self) {
-        use rand::Rng;
         self.0 ^= 1u8.rotate_left(rand::thread_rng().gen_range(0..8));
     }
 
@@ -79,6 +78,16 @@ impl fmt::Display for Gene {
 pub(crate) struct Genome;
 
 impl Genome {
+    pub(crate) fn mutate(mut genome: Vec<Gene>) -> String {
+        let length = genome.len();
+        genome[thread_rng().gen_range(0..length)].mutate();
+
+        genome.iter().fold("".to_owned(), |mut genome: String, current| {
+            genome.push_str(&*format!("{}", current));
+            genome
+        })
+    }
+
     pub(crate) fn from_string(data: String) -> Vec<Gene> {
         let mut genome: Vec<Gene> = Vec::new();
         for g in data.split(" ") {
@@ -89,16 +98,6 @@ impl Genome {
         }
 
         genome
-    }
-
-    pub(crate) fn mutate(mut genome: Vec<Gene>) -> String {
-        let length = genome.len();
-        genome[thread_rng().gen_range(0..length)].mutate();
-
-        genome.iter().fold("".to_owned(), |mut genome: String, current| {
-            genome.push_str(&*format!("{}", current));
-            genome
-        })
     }
 }
 
