@@ -169,6 +169,8 @@ impl Simulation {
             .push(picker)
             .push(desc);
 
+        // TODO: Add a button that copies the description_text field into the user's clipboard
+
         iced::Container::new(content)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -210,41 +212,21 @@ impl iced::canvas::Program<Message> for UniverseInterface {
         // update the bounds (this field is used by helper functions)
         self.bounds = Some(bounds);
 
-        // get the contents of the cell under the cursor
-        let contents = if let Some(position) = cursor.position() {
-            if let Some(contents) = self.contents_at(position) {
-                Some(contents)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
         // get the message for this frame
         let mut message: Option<Message> = None;
         match event {
             Mouse(mouse_event) => {
-                use iced::mouse::Event::*;
-                match mouse_event {
-                    ButtonPressed(..) => {
-                        // change the inspection panel when a cell is clicked on
-                        message = Some(Message::DescriptionClear);
-                        if let Some(contents) = contents {
-                            if let CellContents::Agent(agent) = contents {
-                                message = Some(Message::DescriptionChanged(agent));
-                            }
-                        }
-                    },
-                    CursorMoved { .. } => {
-                        // update tooltip when hovering over non-empty tiles
-                        message = Some(Message::TooltipClear);
-                        if let Some(contents) = contents {
-                            message = Some(Message::TooltipChanged(format!("{}", contents)));
-                        }
-                    }, _ => {  }
+                // ensure that only mouse events inside the canvas are processed
+                if let Some(position) = cursor.position() {
+                    if bounds.contains(position) {
+                        message = self.process_mouse_event(mouse_event, cursor)
+                    }
                 }
-            }, _ => {  }
+
+            }, Keyboard(..) => {
+                self.tick();
+                self.should_redraw = true;
+            }
         }
 
         (Status::Ignored, message)
@@ -295,5 +277,44 @@ impl UniverseInterface {
             },
             None => None
         }
+    }
+
+    fn process_mouse_event(&self, event: iced::mouse::Event, cursor: Cursor) -> Option<Message> {
+        use iced::mouse::Event::*;
+
+        // get the contents of the cell under the cursor
+        let contents = if let Some(position) = cursor.position() {
+            if let Some(contents) = self.contents_at(position) {
+                Some(contents)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let mut message: Option<Message> = None;
+        match event {
+            ButtonPressed(..) => {
+                // change the inspection panel when a cell is clicked on
+                message = Some(Message::DescriptionClear);
+                if let Some(contents) = contents {
+                    if let CellContents::Agent(agent) = contents {
+                        message = Some(Message::DescriptionChanged(agent));
+                    }
+                }
+            },
+            CursorMoved { .. } => {
+                // update tooltip when hovering over non-empty tiles
+                message = Some(Message::TooltipClear);
+                if let Some(contents) = contents {
+                    message = Some(Message::TooltipChanged(format!("{}", contents)));
+                }
+            },
+            _ => {}
+        }
+
+
+        message
     }
 }

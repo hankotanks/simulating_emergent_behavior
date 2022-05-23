@@ -16,8 +16,3 @@ pub fn main() -> iced::Result {
         ..iced::Settings::default()
     })
 }
-
-// TODO: Universe should wrap from opposite edges
-
-// TODO: Pop up window to display genome and digraph.
-//       Activated when clicking on an Agent
