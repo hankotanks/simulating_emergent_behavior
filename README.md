@@ -22,14 +22,17 @@ The simulation runs generation by generation according to a simple set of [rules
 
 #### Simulation Rules
 
-1. Every turn, each creature takes an action. The most fit creatures act first
-2. Fitness determines chance of reproduction
-3. Offspring have a chance to undergo mutations, differentiating them from their parent
-4. Creatures cannot move through walls
-5. When a creature is killed, it becomes food
-6. Eating increases fitness, failure to eat over time leads to death
+1. Every turn, each creature takes an action. The most fit creatures act first.
+2. Fitness determines chance of reproduction.
+3. Offspring have a chance to undergo mutations, differentiating them from their parent.
+4. Creatures cannot move through walls.
+5. When a creature is killed, it becomes food.
+6. Eating increases fitness, failure to eat over time leads to death.
 
-That's it
+The simulation space is a 2D grid of cells, each of which can be occupied by one of three things:
+- A creature
+- Food, which diffuses to adjacent spaces over time (according to an [Abelian sandpile model](https://en.wikipedia.org/wiki/Abelian_sandpile_model))
+- An impassable wall
 
 #### Genes
 
