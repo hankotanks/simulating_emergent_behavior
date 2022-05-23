@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fmt::Formatter;
+use rand::{Rng, thread_rng};
 use strum::IntoEnumIterator;
 
 #[derive(Clone)]
@@ -89,6 +90,16 @@ impl Genome {
 
         genome
     }
+
+    pub(crate) fn mutate(mut genome: Vec<Gene>) -> String {
+        let length = genome.len();
+        genome[thread_rng().gen_range(0..length)].mutate();
+
+        genome.iter().fold("".to_owned(), |mut genome: String, current| {
+            genome.push_str(&*format!("{}", current));
+            genome
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +110,7 @@ pub(crate) enum GeneParse {
     Connection(usize, bool),
 }
 
-#[derive(Debug, Clone, strum_macros::EnumIter)]
+#[derive(Debug, Copy, Clone, strum_macros::EnumIter)]
 pub(crate) enum SenseType {
     Blocked,
     Agent,
@@ -109,7 +120,7 @@ pub(crate) enum SenseType {
     Direction
 }
 
-#[derive(Debug, Clone, strum_macros::EnumIter)]
+#[derive(Debug, Copy, Clone, strum_macros::EnumIter)]
 pub(crate) enum ActionType {
     Move,
     TurnLeft,

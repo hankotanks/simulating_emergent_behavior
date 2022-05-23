@@ -7,7 +7,7 @@ use iced::{Color, Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
-use crate::universe::{Cell, Universe};
+use crate::universe::{CellContents, Coordinate, Universe};
 
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
@@ -20,8 +20,8 @@ impl iced::Sandbox for Simulation {
     fn new() -> Self {
         Self {
             universe: {
-                let size: Size<usize> = Size::new(8, 8);
-                Rc::new(RefCell::new(Universe::new(size, 16, 64, None)))
+                let size: Size<usize> = Size::new(512, 256);
+                Rc::new(RefCell::new(Universe::new(size, 256, 64, None)))
             },
             description: String::from("")
         }
@@ -90,32 +90,7 @@ impl UniverseInterface {
     }
 
     fn tick(&mut self) {
-        let mut u = self.universe.as_ref().borrow_mut();
-
-        u.update();
-
-        let mut maximum: u8 = 0;
-        let mut fittest: Option<&Cell> = None;
-        for cell in u.iter() {
-            if let crate::universe::CellContents::Agent(agent) = &cell.contents {
-                match fittest {
-                    None => fittest = Some(cell),
-                    Some(current) => {
-                        if let crate::universe::CellContents::Agent(c) = &current.contents {
-                            if agent.fitness > c.fitness {
-                                fittest = Some(cell);
-                                maximum = c.fitness;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        println!("{}", fittest.unwrap());
-        println!("{}", maximum);
-
-        // TODO: Agent fitness influences chance of offspring
+        self.universe.as_ref().borrow_mut().update();
     }
 }
 
@@ -145,9 +120,9 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                 match event {
                     ButtonPressed(..) => {
                         if let Some(..) = self.cursor {
-                            match self.cell_at(cursor.position().unwrap()) {
-                                Some(cell) => {
-                                    println!("{}", cell);
+                            match self.cell_contents_at(cursor.position().unwrap()) {
+                                Some(contents) => {
+                                    println!("{}", contents);
                                 },
                                 None => {  }
                             }
@@ -157,8 +132,8 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                     },
                     CursorMoved { position } => {
                         if let Some(..) = self.cursor {
-                                Some(match self.cell_at(position) {
-                                    Some(cell) => Message::TooltipChanged(cell.get_tooltip()),
+                                Some(match self.cell_contents_at(position) {
+                                    Some(contents) => Message::TooltipChanged(format!("{}", contents)),
                                     None => Message::TooltipClear
                                 })
                         } else {
@@ -189,8 +164,8 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             let size = (bounds.width / u.dimensions.width as f32,
                         bounds.height / u.dimensions.height as f32);
 
-            for cell in u.iter() {
-                frame.fill_rectangle(Point::new(cell.x as f32 * size.0, cell.y as f32 * size.1), Size { width: size.0, height: size.1 }, iced::canvas::Fill::from(
+            for (coord, cell) in u.cells().iter() {
+                frame.fill_rectangle(Point::new(coord.x as f32 * size.0,  coord.y as f32 * size.1), Size { width: size.0, height: size.1 }, iced::canvas::Fill::from(
                     cell.color()
                 ));
             }
@@ -202,19 +177,19 @@ impl iced::canvas::Program<Message> for UniverseInterface {
 
 // helper methods
 impl UniverseInterface {
-    fn cell_at(&self, point: Point) -> Option<Cell> { // returns a copy of the cell at a given point on the canvas
+    fn cell_contents_at(&self, point: Point) -> Option<CellContents> { // returns a copy of the cell at a given point on the canvas
         let bounds = self.bounds.unwrap();
 
         let u = self.universe.as_ref().borrow();
 
-        let x = (point.x /
-            (bounds.width / u.dimensions.width as f32)) as usize;
-        let y = (point.y /
-            (bounds.height / u.dimensions.height as f32)) as usize;
+        let coord = Coordinate::new(
+            (point.x / (bounds.width / u.dimensions.width as f32)) as usize,
+            (point.y / (bounds.height / u.dimensions.height as f32)) as usize
+        );
 
-        match u.get(x, y) {
+        match u.get(&coord) {
             Some(cell) => {
-                Some(cell.clone())
+                Some(cell.contents.clone())
             },
             None => None
         }

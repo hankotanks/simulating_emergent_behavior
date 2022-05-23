@@ -1,13 +1,15 @@
 use std::fmt;
 use std::fmt::Formatter;
+
 use petgraph::graph;
 use petgraph::Direction;
 use petgraph::graph::NodeIndex;
+
 use rand::{Rng, thread_rng};
 
-use crate::gene::Gene;
+use crate::gene::{ActionType, Gene};
 use crate::gene::GeneParse;
-use crate::universe::Sense;
+use crate::universe::{Coordinate, Sense};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Node {
@@ -30,66 +32,78 @@ pub(crate) enum Facing {
     Right
 }
 
-impl Facing {
-    fn random() -> Facing {
+impl Default for Facing {
+    fn default() -> Self {
         use Facing::*;
         vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
     }
+}
 
-    pub(crate) fn transform(&self, x: usize, y: usize, dimensions: iced::Size<usize>) -> Option<(usize, usize)> {
+impl Facing {
+    pub(crate) fn transform(&self, coord: &Coordinate, dimensions: iced::Size<usize>) -> Option<Coordinate> {
         use Facing::*;
+
         return match self {
             Up => {
-                if y == 0 {
+                if coord.y == 0 {
                     None
                 } else {
-                    Some((x, y - 1))
+                    Some(Coordinate::new(coord.x, coord.y - 1))
                 }
             },
             Down => {
-                if y >= dimensions.height - 1 {
+                if coord.y >= dimensions.height - 1 {
                     None
                 } else {
-                    Some((x, y + 1))
+                    Some(Coordinate::new(coord.x, coord.y + 1))
                 }
             },
             Left => {
-                if x == 0 {
+                if coord.x == 0 {
                     None
                 } else {
-                    Some((x - 1, y))
+                    Some(Coordinate::new(coord.x - 1, coord.y))
                 }
             },
             Right => {
-                if x >= dimensions.width - 1 {
+                if coord.x >= dimensions.width - 1 {
                     None
                 } else {
-                    Some((x + 1, y))
+                    Some(Coordinate::new(coord.x + 1, coord.y))
                 }
             }
         }
     }
 
-    pub(crate) fn turn(&self, direction: Facing) -> Facing {
+    pub(crate) fn turn_left(&self) -> Self {
         use Facing::*;
-        match direction {
-            Left => {
-                match self {
-                    Up => Left,
-                    Down => Right,
-                    Left => Down,
-                    Right => Up
-                }
-            },
-            Right => {
-                match self {
-                    Up => Right,
-                    Down => Left,
-                    Left => Up,
-                    Right => Down
-                }
-            },
-            _ => unreachable!()
+
+        match self {
+            Up => Left,
+            Down => Right,
+            Left => Down,
+            Right => Up
+        }
+    }
+
+    pub(crate) fn turn_right(&self) -> Self {
+        use Facing::*;
+
+        match self {
+            Up => Right,
+            Down => Left,
+            Left => Up,
+            Right => Down
+        }
+    }
+
+    pub(crate) fn opposite(&self) -> Self {
+        use Facing::*;
+        match self {
+            Up => Down,
+            Down => Up,
+            Left => Right,
+            Right => Left
         }
     }
 }
@@ -100,6 +114,7 @@ pub(crate) struct Agent {
     genome: Vec<Gene>,
     pub(crate) fitness: u8,
     pub(crate) facing: Facing,
+    pub(crate) last_action: Option<ActionType>
 }
 
 impl Agent {
@@ -136,7 +151,8 @@ impl Agent {
             brain,
             genome,
             fitness: 0u8,
-            facing: Facing::random()
+            facing: Facing::default(),
+            last_action: None
         };
 
         a.prune();
@@ -206,7 +222,7 @@ impl Agent {
         }
 
         match dominant {
-            Some(t) => if t.1 > 0f32 { Some(t.0) } else { None },
+            Some(t) => Some(t.0),
             None => None
         }
     }
@@ -279,15 +295,8 @@ impl Agent {
         }
     }
 
-    // TODO: Tidy up this method
-    pub(crate) fn mutate(&self) -> String {
-        let mut g = self.genome.clone();
-        g[thread_rng().gen_range(0..self.genome.len())].mutate();
-
-        g.iter().fold("".to_owned(), |mut genome: String, current| {
-            genome.push_str(&*format!("{}", current));
-            genome
-        })
+    pub(crate) fn reproduce(&self) -> String {
+        crate::gene::Genome::mutate(self.genome.clone())
     }
 
     pub(crate) fn from_string(data: String) -> Result<Self, std::io::Error> {
@@ -345,13 +354,14 @@ impl Agent {
 
 impl fmt::Display for Agent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "genome {{\n    {}\n}}\n\n{}\nfacing {{\n    {}\n}}\n", {
+        write!(f, "genome {{\n    {}\n}}\n\n{}\nfacing {{\n    {}\n}}\nfitness {{\n    {}\n}}\n", {
             self.genome.iter().fold(String::new(), |mut c, g| {
                 c.push_str(&*format!("{} ", g));
                 c
             })
         }, petgraph::dot::Dot::new(&self.brain),
-            format!("{:?}", self.facing)
+            format!("{:?}", self.facing),
+            format!("{:?}", self.fitness)
         )
     }
 }
