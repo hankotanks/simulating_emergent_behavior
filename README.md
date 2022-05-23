@@ -20,17 +20,6 @@ The simulation runs generation by generation according to a simple set of [rules
 
 ***
 
-#### Genes
-
-Genes code for neurons and the connections between them.  
-Each gene is an 8-bit integer; the individual bits define the gene's role in the creation of its creature's brain.
-
-<kbd><img src="./images/genes.png" alt="a simple brain" width="60%" align="middle"></kbd>
-
-It takes two 'connection' genes to define a connection.
-The first encodes the input node's index, the second points to the connection's target.
-Inhibitory connections weaken their output node's signal, additive strengthens it.
-
 #### Simulation Rules
 
 1. Every turn, each creature takes an action. The most fit creatures act first
@@ -41,3 +30,14 @@ Inhibitory connections weaken their output node's signal, additive strengthens i
 6. Eating increases fitness, failure to eat over time leads to death
 
 That's it
+
+#### Genes
+
+Genes code for neurons and the connections between them.  
+Each gene is an 8-bit integer; the individual bits define the gene's role in the creation of its creature's brain.
+
+<kbd><img src="./images/genes.png" alt="a simple brain" width="60%" align="middle"></kbd>
+
+It takes two genes to define a connection.
+The first encodes the input node's index, the second points to the connection's target.
+Inhibitory connections weaken their output node's signal, additive strengthens it.
