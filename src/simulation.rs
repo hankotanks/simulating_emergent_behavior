@@ -7,15 +7,19 @@ use iced::widget::canvas::event::Status;
 
 use crate::universe::{CellContents, Coordinate, Universe};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Message {
     TooltipChanged(String),
-    TooltipClear
+    TooltipClear,
+    DescriptionChanged(String),
+    DescriptionClear
 }
 
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
-    description: String
+    description: String,
+    description_state: iced::scrollable::State,
+    tooltip: String
 }
 
 impl iced::Sandbox for Simulation {
@@ -24,10 +28,12 @@ impl iced::Sandbox for Simulation {
     fn new() -> Self {
         Self {
             universe: {
-                let size: Size<usize> = Size::new(512, 256);
+                let size: Size<usize> = Size::new(128, 128);
                 Rc::new(RefCell::new(Universe::new(size, 256, 64, None)))
             },
-            description: String::from("")
+            description: String::from(""),
+            description_state: iced::scrollable::State::new(),
+            tooltip: String::from("")
         }
     }
 
@@ -37,8 +43,10 @@ impl iced::Sandbox for Simulation {
 
     fn update(&mut self, message: Self::Message) {
         match message {
-            Message::TooltipChanged(text) => self.description = text,
-            Message::TooltipClear => self.description = String::from("")
+            Message::TooltipChanged(tooltip_text) => self.tooltip = tooltip_text,
+            Message::TooltipClear => self.tooltip = String::from(""),
+            Message::DescriptionChanged(description_text) => self.description = description_text,
+            Message::DescriptionClear => self.description = String::from("")
         }
 
     }
@@ -47,16 +55,25 @@ impl iced::Sandbox for Simulation {
         use iced::Length;
         let ui = UniverseInterface::new(Rc::clone(&self.universe));
         let ui = iced::Canvas::new(ui)
+            .width(Length::FillPortion(2u16))
+            .height(Length::Fill);
+
+        let tt: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.tooltip.as_str(), iced::tooltip::Position::FollowCursor);
+
+        let desc = iced::Text::new(&*self.description)
+            .width(Length::FillPortion(1u16))
+            .height(Length::Fill);
+        let desc = iced::Scrollable::new(&mut self.description_state)
+            .push(desc)
             .width(Length::Fill)
             .height(Length::Fill);
 
-        let tt: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.description.as_str(), iced::tooltip::Position::FollowCursor);
-
-        iced::Container::new(tt)
+        iced::Row::new()
+            .push(tt)
+            .push(desc)
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
-
     }
 }
 
@@ -112,13 +129,17 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                         if let Some(..) = self.cursor {
                             match self.contents_at(cursor.position().unwrap()) {
                                 Some(contents) => {
-                                    println!("{}", contents);
+                                    use CellContents::*;
+                                    Some(match contents {
+                                        Agent(agent) => Message::DescriptionChanged(format!("{}", agent)),
+                                        _ => Message::DescriptionClear
+                                    })
                                 },
-                                None => {  }
+                                None => None
                             }
+                        } else {
+                            None
                         }
-
-                        None
                     },
                     CursorMoved { position } => {
                         if let Some(..) = self.cursor {

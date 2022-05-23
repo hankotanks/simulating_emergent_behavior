@@ -352,7 +352,7 @@ impl Agent {
 
 impl fmt::Display for Agent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "genome {{\n    {}\n}}\n\n{}\nfacing {{\n    {}\n}}\nfitness {{\n    {}\n}}\n", {
+        write!(f, "genome {{\n    {}\n}}\n\n{}\nfacing {{\n    {}\n}}\n\nfitness {{\n    {}\n}}\n", {
                 self.genome.iter().fold(String::new(), |mut c, g| {
                     c.push_str(&*format!("{} ", g));
                     c
