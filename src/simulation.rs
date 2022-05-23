@@ -15,7 +15,7 @@ pub(crate) enum Message {
     TooltipChanged(String),
     TooltipClear,
     DescriptionChanged(Agent),
-    DescriptionPanelChanged(String),
+    DescriptionPaneChanged(DescriptionPane),
     DescriptionClear
 }
 
@@ -31,31 +31,57 @@ impl fmt::Debug for Message {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DescriptionPane {
+    Genome,
+    Brain
+}
+
+impl DescriptionPane {
+    const ALL: [DescriptionPane; 2] = [
+        DescriptionPane::Genome,
+        DescriptionPane::Brain
+    ];
+}
+
+impl Default for DescriptionPane {
+    fn default() -> Self {
+        DescriptionPane::Genome
+    }
+}
+
+impl fmt::Display for DescriptionPane {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
-    description: Option<Agent>,
-    description_state: iced::scrollable::State,
-    description_text: String,
+    state_pick_list: iced::pick_list::State<DescriptionPane>,
+    state_scrollable: iced::scrollable::State,
     tooltip: String,
-    inspection_digraph_button_state: iced::button::State,
-    inspection_genome_button_state: iced::button::State
+    description_target: Option<Agent>,
+    description_text: String,
+    selected_description_pane: Option<DescriptionPane>
 }
 
 impl iced::Sandbox for Simulation {
     type Message = Message;
 
     fn new() -> Self {
+        // TODO: Implement Default for Simulation
         Self {
             universe: {
                 let size: Size<usize> = Size::new(128, 128);
                 Rc::new(RefCell::new(Universe::new(size, 256, 64, None)))
             },
-            description: None,
-            description_state: iced::scrollable::State::new(),
-            description_text: String::from(""),
+            state_scrollable: iced::scrollable::State::new(),
+            state_pick_list: iced::pick_list::State::new(),
             tooltip: String::from(""),
-            inspection_digraph_button_state: iced::button::State::new(),
-            inspection_genome_button_state: iced::button::State::new()
+            description_target: None,
+            description_text: String::from(""),
+            selected_description_pane: Some(DescriptionPane::default()),
         }
     }
 
@@ -65,15 +91,15 @@ impl iced::Sandbox for Simulation {
 
     fn update(&mut self, message: Self::Message) {
         match message {
-            Message::TooltipChanged(tooltip_text) => self.tooltip = tooltip_text,
-            Message::TooltipClear => self.tooltip = String::from(""),
-            Message::DescriptionChanged(agent) => {
-                self.description = Some(agent);
-                self.description_text.clear();
-                self.description_state.snap_to(0f32);
-            },
-            Message::DescriptionClear => self.description = None,
-            Message::DescriptionPanelChanged(description_text) => self.description_text = description_text
+            Message::TooltipChanged(tooltip) => self.update_tooltip(Some(tooltip)),
+            Message::TooltipClear => self.update_tooltip(None),
+            Message::DescriptionChanged(agent) => self.update_description(Some(agent)),
+            Message::DescriptionClear => self.update_description(None),
+            Message::DescriptionPaneChanged(pane) => {
+                self.selected_description_pane = Some(pane);
+
+                self.update_description(self.description_target.clone());
+            }
         }
 
     }
@@ -97,49 +123,51 @@ impl iced::Sandbox for Simulation {
 }
 
 impl Simulation {
+    fn update_tooltip(&mut self, tooltip: Option<String>) {
+        self.tooltip = match tooltip {
+            Some(text) => text,
+            None => String::from("")
+        }
+    }
+
+    fn update_description(&mut self, agent: Option<Agent>) {
+        self.description_target = agent;
+        match &self.description_target {
+            Some(agent) => {
+                if let Some(pane) = self.selected_description_pane {
+                    self.description_text = match pane {
+                        DescriptionPane::Genome => agent.get_genome_string(),
+                        DescriptionPane::Brain => agent.get_digraph()
+                    }
+                }
+            },
+            None => self.description_text.clear()
+        }
+
+        self.state_scrollable.snap_to(0f32);
+    }
+
     fn inspect(&mut self) -> iced::Container<Message> {
         use iced::Length;
 
-        let header = iced::Text::new(format!("{}", match &self.description {
-            Some(agent) => format!("{}", agent),
-            None => String::from("")
-        }))
-            .width(Length::Fill)
-            .height(Length::Shrink)
-            .horizontal_alignment(iced::alignment::Horizontal::Center);
-
-        let controls: iced::Row<Message> = iced::Row::new()
-            .push(
-                iced::Button::new(&mut self.inspection_genome_button_state, iced::Text::new("Genome")).on_press(Message::DescriptionPanelChanged(match &self.description {
-                    Some(agent) => agent.get_genome_string(),
-                    None => String::from("")
-                }))
-            )
-            .push(
-                iced::Button::new(&mut self.inspection_digraph_button_state, iced::Text::new("Brain")).on_press(Message::DescriptionPanelChanged(match &self.description {
-                    Some(agent) => agent.get_digraph(),
-                    None => String::from("")
-                }))
-            )
-            .height(Length::Shrink)
+        let picker = iced::PickList::new(&mut self.state_pick_list, &DescriptionPane::ALL[..], self.selected_description_pane, Message::DescriptionPaneChanged)
+            .width(Length::Fill);
+        let picker = iced::Container::new(picker)
             .width(Length::Fill)
             .padding(iced::Padding::new(10));
 
         let desc = iced::Text::new(&self.description_text)
             .width(Length::FillPortion(1u16))
             .height(Length::Fill);
-        let desc = iced::Scrollable::new(&mut self.description_state)
+        let desc = iced::Scrollable::new(&mut self.state_scrollable)
             .push(desc)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(iced::Padding::new(10));
 
         let content = iced::Column::new()
-            .push(header)
-            .push(controls)
-            .push(desc)
-            .width(Length::Fill)
-            .height(Length::Fill);
+            .push(picker)
+            .push(desc);
 
         iced::Container::new(content)
             .width(Length::Fill)
@@ -151,7 +179,6 @@ struct UniverseInterface {
     universe: Rc<RefCell<Universe>>,
     cache: Cache,
     bounds: Option<Rectangle>,
-    cursor: Option<Cursor>,
     should_redraw: bool
 }
 
@@ -161,7 +188,6 @@ impl UniverseInterface {
             universe,
             cache: Cache::default(),
             bounds: None,
-            cursor: None,
             should_redraw: false
         }
     }
@@ -175,76 +201,71 @@ impl iced::canvas::Program<Message> for UniverseInterface {
     fn update(&mut self, event: Event, bounds: Rectangle, cursor: Cursor) -> (Status, Option<Message>) {
         use iced::canvas::Event::*;
 
+        // redraw the scene if needed
         if self.should_redraw {
             self.cache.clear();
             self.should_redraw = false;
         }
 
+        // update the bounds (this field is used by helper functions)
         self.bounds = Some(bounds);
-        if let Some(pos) = cursor.position() {
-            if bounds.contains(pos) {
-                self.cursor = Some(cursor);
+
+        // get the contents of the cell under the cursor
+        let contents = if let Some(position) = cursor.position() {
+            if let Some(contents) = self.contents_at(position) {
+                Some(contents)
             } else {
-                self.cursor = None;
+                None
             }
         } else {
-            self.cursor = None;
+            None
+        };
+
+        // get the message for this frame
+        let mut message: Option<Message> = None;
+        match event {
+            Mouse(mouse_event) => {
+                use iced::mouse::Event::*;
+                match mouse_event {
+                    ButtonPressed(..) => {
+                        // change the inspection panel when a cell is clicked on
+                        message = Some(Message::DescriptionClear);
+                        if let Some(contents) = contents {
+                            if let CellContents::Agent(agent) = contents {
+                                message = Some(Message::DescriptionChanged(agent));
+                            }
+                        }
+                    },
+                    CursorMoved { .. } => {
+                        // update tooltip when hovering over non-empty tiles
+                        message = Some(Message::TooltipClear);
+                        if let Some(contents) = contents {
+                            message = Some(Message::TooltipChanged(format!("{}", contents)));
+                        }
+                    }, _ => {  }
+                }
+            }, _ => {  }
         }
 
-        return (Status::Ignored, match event {
-            Mouse(event) => {
-                use iced::mouse::Event::*;
-                match event {
-                    ButtonPressed(..) => {
-                        if let Some(..) = self.cursor {
-                            match self.contents_at(cursor.position().unwrap()) {
-                                Some(contents) => {
-                                    use CellContents::*;
-                                    Some(match contents {
-                                        Agent(agent) => Message::DescriptionChanged(agent),
-                                        _ => Message::DescriptionClear
-                                    })
-                                },
-                                None => None
-                            }
-                        } else {
-                            None
-                        }
-                    },
-                    CursorMoved { position } => {
-                        if let Some(..) = self.cursor {
-                                Some(match self.contents_at(position) {
-                                    Some(contents) => Message::TooltipChanged(format!("{}", contents)),
-                                    None => Message::TooltipClear
-                                })
-                        } else {
-                            Some(Message::TooltipClear)
-                        }
-                    },
-                    _ => None
-                }
-            },
-            Keyboard(event) => {
-                use iced::keyboard::Event::*;
-                if let KeyPressed { .. } = event {
-                    self.tick();
-                    self.should_redraw = true;
-                    None
-                } else {
-                    None
-                }
-            }
-        })
+        (Status::Ignored, message)
+
     }
 
     fn draw(&self, bounds: Rectangle, _cursor: Cursor) -> Vec<iced::canvas::Geometry> {
         let cells = self.cache.draw(bounds.size(), |frame| {
-            frame.fill(&iced::canvas::Path::rectangle(Point::ORIGIN, frame.size()), Color::from_rgb8(0x40, 0x44, 0x4B));
+            // draw the background of the canvas
+            frame.fill(
+                &iced::canvas::Path::rectangle(Point::ORIGIN, frame.size()),
+                Color::from_rgb8(0x40, 0x44, 0x4B));
 
+            // maintain a mutable reference to the universe
             let u = self.universe.as_ref().borrow();
+
+            // calculate the dimensions of each cell
             let size = (bounds.width / u.dimensions.width as f32,
                         bounds.height / u.dimensions.height as f32);
 
+            // draw each cell
             for (coord, cell) in u.cells().iter() {
                 frame.fill_rectangle(Point::new(coord.x as f32 * size.0,  coord.y as f32 * size.1), Size { width: size.0, height: size.1 }, iced::canvas::Fill::from(
                     cell.color()
@@ -256,16 +277,16 @@ impl iced::canvas::Program<Message> for UniverseInterface {
     }
 }
 
-// helper methods
+// Helper methods
 impl UniverseInterface {
-    fn contents_at(&self, point: Point) -> Option<CellContents> { // returns a copy of the cell's contents at a given point on the canvas
-        let bounds = self.bounds.unwrap();
-
+    // Note that this returns a copy of the cell's contents
+    fn contents_at(&self, point: Point) -> Option<CellContents> {
         let u = self.universe.as_ref().borrow();
 
+        // get the coordinates of the cell
         let coord = Coordinate::new(
-            (point.x / (bounds.width / u.dimensions.width as f32)) as usize,
-            (point.y / (bounds.height / u.dimensions.height as f32)) as usize
+            (point.x / (self.bounds.unwrap().width / u.dimensions.width as f32)) as usize,
+            (point.y / (self.bounds.unwrap().height / u.dimensions.height as f32)) as usize
         );
 
         match u.get(&coord) {
