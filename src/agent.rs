@@ -164,42 +164,66 @@ impl Agent {
         for index in self.brain.node_indices() {
             match self.brain[index] {
                 Node::Sense(..) => {
-                    self.clear_walk_edges(
-                        self.brain.neighbors_directed(index, Direction::Incoming).detach()
-                    );
+                    let mut walk = self.brain.neighbors_directed(index, Direction::Incoming).detach();
+                    'sense_deletion: loop {
+                        match walk.next_edge(&self.brain) {
+                            Some(t) => {
+                                self.brain.remove_edge(t);
+                            },
+                            None => break 'sense_deletion
+                        }
+                    }
                 },
                 Node::Action(..) => {
-                    self.clear_walk_edges(
-                        self.brain.neighbors_directed(index, Direction::Outgoing).detach()
-                    );
+                    let mut walk = self.brain.neighbors_directed(index, Direction::Outgoing).detach();
+                    'action_deletion: loop {
+                        match walk.next_edge(&self.brain) {
+                            Some(t) => {
+                                self.brain.remove_edge(t);
+                            },
+                            None => break 'action_deletion
+                        }
+                    }
                 }, _ => {  }
             }
         }
 
-        self.prune_isolates(None);
+        let mut retain: Vec<NodeIndex> = Vec::new();
+        for index in self.brain.node_indices() {
+            if let Node::Action(..) = self.brain[index] {
+                self.prune_isolates(index, &mut retain);
+            }
+        }
+
+        self.brain.retain_nodes(|brain, n| {
+            retain.contains(&n) && {
+                match &brain[n] {
+                    Node::Action(..) => {
+                        if brain.neighbors_directed(n, Direction::Incoming).count() == 0 {
+                            false
+                        } else {
+                            true
+                        }
+                    },
+                    _ => true
+                }
+            }
+        } );
     }
 
-    fn prune_isolates(&mut self, size: Option<usize>) -> usize {
-        let mut remove: Vec<NodeIndex> = Vec::new();
-        for index in self.brain.node_indices() {
-            if self.removable(index) {
-                remove.push(index);
+    fn prune_isolates(&mut self, index: NodeIndex, processed: &mut Vec<NodeIndex>) {
+        processed.push(index);
+        let mut walk = self.brain.neighbors_directed(index, Direction::Incoming).detach();
+        loop {
+            match walk.next_node(&self.brain) {
+                Some(t) => {
+                    if !processed.contains(&t) {
+                        self.prune_isolates(t, processed);
+                    }
+                },
+                None => break
             }
         }
-
-        for &node in remove.iter() {
-            self.brain.remove_node(node);
-        }
-
-        if let Some(t) = size {
-            if t != self.brain.node_count() {
-                self.prune_isolates(Some(self.brain.node_count()));
-            }
-        } else {
-            self.prune_isolates(Some(self.brain.node_count()));
-        }
-
-        self.brain.node_count()
     }
 
     pub(crate)fn resolve(&self, sense: &Sense) -> Option<crate::gene::ActionType> {
@@ -318,43 +342,6 @@ impl Agent {
 
     pub(crate) fn get_genome_string(&self) -> String {
         crate::gene::Genome::get(self.genome.clone())
-    }
-}
-
-impl Agent {
-    fn clear_walk_edges(&mut self, mut walk: graph::WalkNeighbors<graph::DefaultIx>) {
-        'deletion: loop {
-            match walk.next_edge(&self.brain) {
-                Some(t) => {
-                    self.brain.remove_edge(t);
-                },
-                None => break 'deletion
-            }
-        }
-    }
-
-    fn removable(&self, index: NodeIndex) -> bool {
-        use Node::*;
-
-        return match &self.brain[index] {
-            Sense(..) | Internal(..) => {
-                let outputs = self.brain.neighbors_directed(index, Direction::Outgoing);
-                if outputs.clone().count() == 1 {
-                    match outputs.clone().next() {
-                        Some(t) => t == index,
-                        None => unreachable!()
-                    }
-                } else if outputs.count() == 0 {
-                    true
-                } else {
-                    false
-                }
-            },
-            Action(..) => {
-                self.brain.neighbors_directed(index, Direction::Incoming).count() == 0
-
-            }
-        }
     }
 }
 
