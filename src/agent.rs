@@ -317,7 +317,7 @@ impl Agent {
     }
 
     pub(crate) fn get_genome_string(&self) -> String {
-        crate::gene::Genome::get(self.genome.clone(), Some("\n"))
+        crate::gene::Genome::get(self.genome.clone())
     }
 }
 

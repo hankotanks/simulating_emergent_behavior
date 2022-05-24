@@ -84,19 +84,18 @@ impl Genome {
         let length = genome.len();
         genome[thread_rng().gen_range(0..length)].mutate();
 
-        Genome::get(genome, None)
+        Genome::get(genome)
     }
 
-    // TODO: Find a way to implement this with a default deliminator, rather than an Option
-    pub(crate) fn get(genome: Vec<Gene>, delim: Option<&str>) -> String {
-        let default_delim = " ";
+    pub(crate) fn get(genome: Vec<Gene>) -> String {
+        Self::get_with_delim(genome, " ")
+    }
+
+    pub(crate) fn get_with_delim(genome: Vec<Gene>, delim: &str) -> String {
         genome.iter().fold("".to_owned(), |mut genome: String, current| {
-            genome.push_str(&*format!("{}{}", current, match delim {
-                Some(d) => d,
-                None => default_delim
-            }));
+            genome.push_str(&*format!("{}{}", current, delim));
             genome
-        })
+        }).trim_end().to_string()
     }
 
     pub(crate) fn from_string(data: String) -> Vec<Gene> {

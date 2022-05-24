@@ -17,7 +17,8 @@ pub(crate) enum Message {
     TooltipClear,
     DescriptionChanged(Agent),
     DescriptionPaneChanged(DescriptionPane),
-    DescriptionClear
+    DescriptionClear,
+    DescriptionCopy
 }
 
 impl fmt::Debug for Message {
@@ -53,7 +54,12 @@ impl Default for DescriptionPane {
 
 impl fmt::Display for DescriptionPane {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{}",
+            match self {
+                DescriptionPane::Genome => "Genome",
+                DescriptionPane::Brain => "Brain"
+            }
+        )
     }
 }
 
@@ -61,6 +67,7 @@ pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
     state_pick_list: iced::pick_list::State<DescriptionPane>,
     state_scrollable: iced::scrollable::State,
+    state_copy_button: iced::button::State,
     tooltip: String,
     description_target: Option<Agent>,
     description_text: String,
@@ -72,6 +79,7 @@ impl iced::Sandbox for Simulation {
 
     fn new() -> Self {
         // TODO: Implement Default for Simulation
+        // TODO: Disable copy button when no agent is selected
         Self {
             universe: {
                 let size: Size<usize> = Size::new(128, 128);
@@ -79,9 +87,10 @@ impl iced::Sandbox for Simulation {
             },
             state_scrollable: iced::scrollable::State::new(),
             state_pick_list: iced::pick_list::State::new(),
-            tooltip: String::from(""),
+            state_copy_button: iced::button::State::new(),
+            tooltip: String::new(),
             description_target: None,
-            description_text: String::from(""),
+            description_text: String::new(),
             selected_description_pane: Some(DescriptionPane::default()),
         }
     }
@@ -100,6 +109,9 @@ impl iced::Sandbox for Simulation {
                 self.selected_description_pane = Some(pane);
 
                 self.update_description(self.description_target.clone());
+            },
+            Message::DescriptionCopy => {
+                arboard::Clipboard::new().unwrap().set_text(self.description_text.clone()).unwrap();
             }
         }
 
@@ -127,12 +139,15 @@ impl Simulation {
     fn update_tooltip(&mut self, tooltip: Option<String>) {
         self.tooltip = match tooltip {
             Some(text) => text,
-            None => String::from("")
+            None => String::new()
         }
     }
 
     fn update_description(&mut self, agent: Option<Agent>) {
+        // set the new description target
         self.description_target = agent;
+
+        // update description text to match new agent
         match &self.description_target {
             Some(agent) => {
                 if let Some(pane) = self.selected_description_pane {
@@ -145,33 +160,60 @@ impl Simulation {
             None => self.description_text.clear()
         }
 
+        // move to the top of the scrollable
         self.state_scrollable.snap_to(0f32);
     }
 
     fn inspect(&mut self) -> iced::Container<Message> {
         use iced::Length;
 
-        let picker = iced::PickList::new(&mut self.state_pick_list, &DescriptionPane::ALL[..], self.selected_description_pane, Message::DescriptionPaneChanged)
+        // the dropdown where different DescriptionPanes can be selected
+        let picker = iced::PickList::new(
+            &mut self.state_pick_list,
+            &DescriptionPane::ALL[..],
+            self.selected_description_pane,
+            Message::DescriptionPaneChanged)
             .width(Length::Fill);
         let picker = iced::Container::new(picker)
             .width(Length::Fill)
             .padding(iced::Padding::new(10));
 
+        // a button used to copy the description
+        let copy = iced::Button::new(
+            &mut self.state_copy_button,
+            iced::Text::new("Copy"))
+            .width(Length::Fill)
+            .on_press(Message::DescriptionCopy);
+        let copy = iced::Container::new(copy)
+            .width(Length::Fill)
+            .padding(iced::Padding {
+                top: 10,
+                right: 0,
+                bottom: 0,
+                left: 0 } );
+
+        // the area where the Agent's Genome and Digraph are displayed
         let desc = iced::Text::new(&self.description_text)
             .width(Length::FillPortion(1u16))
-            .height(Length::Fill);
+            .height(Length::Shrink);
         let desc = iced::Scrollable::new(&mut self.state_scrollable)
             .push(desc)
+            .push(copy)
             .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(iced::Padding::new(10));
+            .height(Length::Shrink)
+            .padding(iced::Padding {
+                top: 0,
+                right: 10,
+                bottom: 10,
+                left: 10
+            } );
 
+        // put it all together
         let content = iced::Column::new()
             .push(picker)
             .push(desc);
 
-        // TODO: Add a button that copies the description_text field into the user's clipboard
-
+        // wrap it in a container and return
         iced::Container::new(content)
             .width(Length::Fill)
             .height(Length::Fill)

@@ -11,3 +11,4 @@ strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
 petgraph = "0.6.0"
 iced = { features = ["canvas"] }
+arboard = "2.1.1"
