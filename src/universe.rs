@@ -1,8 +1,8 @@
-use std::cell::{Ref, RefCell};
-use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::hash::Hash;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 use rand::{Rng, thread_rng};
 
@@ -179,7 +179,7 @@ impl Universe {
 
 // helper methods
 impl Universe {
-    pub(crate) fn cells(&self) -> Ref<'_, HashMap<Coordinate, Cell>> {
+    pub(crate) fn cells(&self) -> std::cell::Ref<'_, HashMap<Coordinate, Cell>> {
         self.cells.borrow()
     }
 

@@ -1,13 +1,14 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+
 use std::fmt;
 use std::fmt::Formatter;
 
 use iced::{Color, Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
-use crate::agent::Agent;
 
+use crate::agent::Agent;
 use crate::universe::{CellContents, Coordinate, Universe};
 
 #[derive(Clone)]

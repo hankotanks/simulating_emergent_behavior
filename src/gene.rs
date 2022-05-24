@@ -1,6 +1,8 @@
 use std::fmt;
 use std::fmt::Formatter;
+
 use rand::{Rng, thread_rng};
+
 use strum::IntoEnumIterator;
 
 #[derive(Clone)]
