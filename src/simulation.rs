@@ -201,6 +201,8 @@ impl Simulation {
             .push(copy)
             .width(Length::Fill)
             .height(Length::Shrink)
+            .scroller_width(0)
+            .scrollbar_width(0)
             .padding(iced::Padding {
                 top: 0,
                 right: 10,
