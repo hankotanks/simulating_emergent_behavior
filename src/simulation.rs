@@ -63,6 +63,7 @@ impl fmt::Display for DescriptionPane {
     }
 }
 
+#[derive(Default)]
 pub(crate) struct Simulation {
     universe: Rc<RefCell<Universe>>,
     state_pick_list: iced::pick_list::State<DescriptionPane>,
@@ -78,19 +79,15 @@ impl iced::Sandbox for Simulation {
     type Message = Message;
 
     fn new() -> Self {
-        // TODO: Implement Default for Simulation
         // TODO: Disable copy button when no agent is selected
         Self {
-            universe: {
-                let size: Size<usize> = Size::new(128, 128);
-                Rc::new(RefCell::new(Universe::new(size, 256, 64, None)))
-            },
-            state_scrollable: iced::scrollable::State::new(),
-            state_pick_list: iced::pick_list::State::new(),
-            state_copy_button: iced::button::State::new(),
-            tooltip: String::new(),
-            description_target: None,
-            description_text: String::new(),
+            universe: Rc::new(RefCell::new(Universe::default())),
+            state_scrollable: iced::scrollable::State::default(),
+            state_pick_list: iced::pick_list::State::default(),
+            state_copy_button: iced::button::State::default(),
+            tooltip: String::default(),
+            description_target: Option::default(),
+            description_text: String::default(),
             selected_description_pane: Some(DescriptionPane::default()),
         }
     }

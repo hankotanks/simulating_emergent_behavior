@@ -6,6 +6,7 @@ use petgraph::Direction;
 use petgraph::graph::NodeIndex;
 
 use rand::{Rng, thread_rng};
+use rand::rngs::StdRng;
 
 use crate::gene::{ActionType, Gene};
 use crate::gene::GeneParse;
@@ -288,17 +289,23 @@ impl Agent {
         crate::gene::Genome::mutate(self.genome.clone())
     }
 
-    pub(crate) fn from_string(data: String) -> Result<Self, std::io::Error> {
-        Self::new(crate::gene::Genome::from_string(data))
-    }
-
-    pub(crate) fn from_seed(complexity: usize, prng: &mut rand::rngs::StdRng) -> Result<Self, std::io::Error> {
+    pub(crate) fn from_prng(complexity: usize, prng: &mut rand::rngs::StdRng) -> Result<Self, std::io::Error> {
         let mut genome: Vec<Gene> = Vec::new();
         for _ in 0..complexity {
             genome.push(Gene::new(prng.gen_range(0..=255)));
         }
 
         Self::new(genome)
+    }
+
+    pub(crate) fn from_seed(complexity: usize, seed: u64) -> Result<Self, std::io::Error> {
+        let mut prng: StdRng = rand::SeedableRng::seed_from_u64(seed);
+
+        Agent::from_prng(complexity, &mut prng)
+    }
+
+    pub(crate) fn from_string(data: String) -> Result<Self, std::io::Error> {
+        Self::new(crate::gene::Genome::from_string(data))
     }
 
     pub(crate) fn get_digraph(&self) -> String {

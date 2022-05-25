@@ -159,6 +159,13 @@ pub(crate) struct Universe {
     pub(crate) dimensions: iced::Size<usize>
 }
 
+impl Default for Universe {
+    fn default() -> Self {
+        let dimensions: iced::Size<usize> = iced::Size::new(128, 128);
+        Self::new(dimensions, 128, 64, None)
+    }
+}
+
 impl Universe {
     pub(crate) fn new(dimensions: iced::Size<usize>, agents: usize, complexity: usize, seed: Option<u64>) -> Self {
         let mut prng: rand::rngs::StdRng = match seed {
@@ -178,13 +185,14 @@ impl Universe {
                         );
 
                         if !universe.contains_key(&coord) {
-                            match Agent::from_seed(complexity, &mut prng) {
+                            match Agent::from_prng(complexity, &mut prng) {
                                 Ok(agent) => {
                                     universe.insert(coord, {
-                                        let mut c = Tile::new(coord);
-                                        c.contents = TileContents::Agent(agent);
-                                        RefCell::new(c)
-                                    });
+                                        let mut t = Tile::new(coord);
+                                        t.contents = TileContents::Agent(agent);
+
+                                        RefCell::new(t)
+                                    } );
                                     break 'occupied;
                                 },
                                 Err(..) => {
@@ -224,6 +232,7 @@ impl Universe {
                                 // add the child to the new tile
                                 t.contents = TileContents::Agent(child);
 
+                                // push to list of tiles to be added
                                 births.push(t);
                             },
                             Err(..) => {  } // do nothing if the offspring is non-viable
@@ -233,6 +242,7 @@ impl Universe {
             }
         }
 
+        // add new births to the HashMap of tiles
         for tile in births.drain(0..births.len()) {
             self.tiles.insert(tile.coord.clone(), RefCell::new(tile));
         }
@@ -288,5 +298,3 @@ impl Sense {
         }
     }
 }
-
-// TODO: Universe has wrapping edges
