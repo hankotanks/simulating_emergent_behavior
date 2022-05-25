@@ -2,10 +2,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::hash::Hash;
 use std::cell::RefCell;
-use std::collections::hash_map::Values;
 use std::collections::HashMap;
-use std::iter::Map;
-use std::slice::Iter;
 
 use rand::{Rng, thread_rng};
 
@@ -112,53 +109,53 @@ impl<'a> CoordinateOffset<'a> {
 }
 
 #[derive(Clone)]
-pub(crate) struct Cell {
+pub(crate) struct Tile {
     pub(crate) coord: Coordinate,
-    pub(crate) contents: CellContents
+    pub(crate) contents: TileContents
 }
 
-impl fmt::Display for Cell {
+impl fmt::Display for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Cell @ {}: {}", self.coord, self.contents)
     }
 }
 
-impl Cell {
+impl Tile {
     pub(crate) fn new(coord: Coordinate) -> Self {
         Self {
             coord,
-            contents: CellContents::Food(0)
+            contents: TileContents::Food(0)
         }
     }
 
     pub(crate) fn color(&self) -> iced::Color {
         match &self.contents {
-            CellContents::Food(..) => FOOD_COLOR,
-            CellContents::Agent(..) => AGENT_COLOR,
-            CellContents::Wall => WALL_COLOR
+            TileContents::Food(..) => FOOD_COLOR,
+            TileContents::Agent(..) => AGENT_COLOR,
+            TileContents::Wall => WALL_COLOR
         }.get()
     }
 }
 
 #[derive(Clone)]
-pub(crate) enum CellContents {
+pub(crate) enum TileContents {
     Food(u8),
     Agent(Agent),
     Wall
 }
 
-impl fmt::Display for CellContents {
+impl fmt::Display for TileContents {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
-            CellContents::Food(amount) => format!("Food ({})", amount),
-            CellContents::Agent(agent) => format!("{}", agent),
-            CellContents::Wall => String::from("Wall")
+            TileContents::Food(amount) => format!("Food ({})", amount),
+            TileContents::Agent(agent) => format!("{}", agent),
+            TileContents::Wall => String::from("Wall")
         })
     }
 }
 
 pub(crate) struct Universe {
-    cells: HashMap<Coordinate, RefCell<Cell>>,
+    tiles: HashMap<Coordinate, RefCell<Tile>>,
     pub(crate) dimensions: iced::Size<usize>
 }
 
@@ -170,8 +167,8 @@ impl Universe {
         };
 
         Self {
-            cells: {
-                let mut universe: HashMap<Coordinate, RefCell<Cell>> = HashMap::new();
+            tiles: {
+                let mut universe: HashMap<Coordinate, RefCell<Tile>> = HashMap::new();
 
                 for _ in 0..agents {
                     'occupied: loop {
@@ -184,8 +181,8 @@ impl Universe {
                             match Agent::from_seed(complexity, &mut prng) {
                                 Ok(agent) => {
                                     universe.insert(coord, {
-                                        let mut c = Cell::new(coord);
-                                        c.contents = CellContents::Agent(agent);
+                                        let mut c = Tile::new(coord);
+                                        c.contents = TileContents::Agent(agent);
                                         RefCell::new(c)
                                     });
                                     break 'occupied;
@@ -206,9 +203,9 @@ impl Universe {
     }
 
     pub(crate) fn update(&mut self) {
-        let mut births: Vec<Cell> = Vec::new();
-        for (coord, cell) in self.cells.iter() {
-            if let CellContents::Agent(ref mut agent) = cell.borrow_mut().contents {
+        let mut births: Vec<Tile> = Vec::new();
+        for (coord, tile) in self.tiles.iter() {
+            if let TileContents::Agent(ref mut agent) = tile.borrow_mut().contents {
                 // check if the creature reproduces
                 if thread_rng().gen_range(0..=255) < agent.fitness {
                     // get the birth coordinate and offset it appropriately
@@ -216,18 +213,18 @@ impl Universe {
                     birth_coord.offset(CoordinateOffset::from_facing(agent.facing.opposite(), &self.dimensions));
 
                     // if there is an empty space behind it
-                    if self.cells.get(&birth_coord).is_none() {
+                    if self.tiles.get(&birth_coord).is_none() {
                         // reset the fitness of the parent, even if reproduction fails
                         agent.fitness = 0u8;
 
                         match crate::agent::Agent::from_string(agent.reproduce()) {
                             Ok(child) => {
-                                let mut c = Cell::new(birth_coord);
+                                let mut t = Tile::new(birth_coord);
 
-                                // add the child to the new cell
-                                c.contents = CellContents::Agent(child);
+                                // add the child to the new tile
+                                t.contents = TileContents::Agent(child);
 
-                                births.push(c);
+                                births.push(t);
                             },
                             Err(..) => {  } // do nothing if the offspring is non-viable
                         }
@@ -236,21 +233,21 @@ impl Universe {
             }
         }
 
-        for cell in births.drain(0..births.len()) {
-            self.cells.insert(cell.coord.clone(), RefCell::new(cell));
+        for tile in births.drain(0..births.len()) {
+            self.tiles.insert(tile.coord.clone(), RefCell::new(tile));
         }
 
         // perform action
-        for cell in self.cells.values() {
-            if let CellContents::Agent(agent) = &cell.borrow().contents {
-                if let Some(action) = agent.resolve(&Sense::new(self, cell)) {
-                    self.perform_action(cell, action);
+        for tile in self.tiles.values() {
+            if let TileContents::Agent(agent) = &tile.borrow().contents {
+                if let Some(action) = agent.resolve(&Sense::new(self, tile)) {
+                    self.perform_action(tile, action);
                 }
             }
         }
     }
 
-    fn perform_action(&self, _cell: &RefCell<Cell>, _action: ActionType) {
+    fn perform_action(&self, _tile: &RefCell<Tile>, _action: ActionType) {
         // TODO: Re-implement Universe::perform_action
 
     }
@@ -258,15 +255,15 @@ impl Universe {
 
 // helper methods
 impl Universe {
-    pub(crate) fn cells(&self) -> Vec<Cell> {
-        self.cells.iter().map(|cell| {
-            cell.1.borrow().clone()
-        } ).collect::<Vec<Cell>>()
+    pub(crate) fn tiles(&self) -> Vec<Tile> {
+        self.tiles.iter().map(|tile| {
+            tile.1.borrow().clone()
+        } ).collect::<Vec<Tile>>()
     }
 
-    pub(crate) fn get(&self, coord: &Coordinate) -> Option<Cell> {
-        match self.cells.get(coord) {
-            Some(cell) => Some(cell.borrow().clone()),
+    pub(crate) fn get(&self, coord: &Coordinate) -> Option<Tile> {
+        match self.tiles.get(coord) {
+            Some(tile) => Some(tile.borrow().clone()),
             None => None
         }
     }
@@ -278,7 +275,7 @@ pub(crate) struct Sense {
 }
 
 impl Sense {
-    pub(crate) fn new(_universe: &Universe, _cell: &RefCell<Cell>) -> Self {
+    pub(crate) fn new(_universe: &Universe, _tile: &RefCell<Tile>) -> Self {
         Self {
 
         }

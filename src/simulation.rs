@@ -9,7 +9,7 @@ use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
 use crate::agent::Agent;
-use crate::universe::{CellContents, Coordinate, Universe};
+use crate::universe::{TileContents, Coordinate, Universe};
 
 #[derive(Clone)]
 pub(crate) enum Message {
@@ -279,7 +279,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
     }
 
     fn draw(&self, bounds: Rectangle, _cursor: Cursor) -> Vec<iced::canvas::Geometry> {
-        let cells = self.cache.draw(bounds.size(), |frame| {
+        let tiles = self.cache.draw(bounds.size(), |frame| {
             // draw the background of the canvas
             frame.fill(
                 &iced::canvas::Path::rectangle(Point::ORIGIN, frame.size()),
@@ -288,40 +288,40 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             // maintain a mutable reference to the universe
             let u = self.universe.as_ref().borrow();
 
-            // calculate the dimensions of each cell
+            // calculate the dimensions of each tile
             let size = (bounds.width / u.dimensions.width as f32,
                         bounds.height / u.dimensions.height as f32);
 
-            // draw each cell
-            for cell in u.cells() {
+            // draw each tile
+            for tile in u.tiles() {
                 frame.fill_rectangle(
-                    Point::new(cell.coord.x as f32 * size.0,  cell.coord.y as f32 * size.1),
+                    Point::new(tile.coord.x as f32 * size.0, tile.coord.y as f32 * size.1),
                     Size { width: size.0, height: size.1 },
-                    iced::canvas::Fill::from(cell.color())
+                    iced::canvas::Fill::from(tile.color())
                 );
             }
         });
 
-        vec![cells]
+        vec![tiles]
     }
 }
 
 // Helper methods
 impl UniverseInterface {
-    // Note that this returns a copy of the cell's contents
-    fn contents_at(&self, point: Point) -> Option<CellContents> {
+    // Note that this returns a copy of the tile's contents
+    fn contents_at(&self, point: Point) -> Option<TileContents> {
         let u = self.universe.as_ref().borrow();
 
-        // get the coordinates of the cell
+        // get the coordinates of the tile
         let coord = Coordinate::new(
             (point.x / (self.bounds.unwrap().width / u.dimensions.width as f32)) as usize,
             (point.y / (self.bounds.unwrap().height / u.dimensions.height as f32)) as usize
         );
 
         match u.get(&coord) {
-            Some(cell) => {
-                Some(cell.contents.clone())
-            },
+            Some(tile) => {
+                Some(tile.contents.clone())
+            }
             None => None
         }
     }
@@ -329,7 +329,7 @@ impl UniverseInterface {
     fn process_mouse_event(&self, event: iced::mouse::Event, cursor: Cursor) -> Option<Message> {
         use iced::mouse::Event::*;
 
-        // get the contents of the cell under the cursor
+        // get the contents of the tile under the cursor
         let contents = if let Some(position) = cursor.position() {
             if let Some(contents) = self.contents_at(position) {
                 Some(contents)
@@ -343,10 +343,10 @@ impl UniverseInterface {
         let mut message: Option<Message> = None;
         match event {
             ButtonPressed(..) => {
-                // change the inspection panel when a cell is clicked on
+                // change the inspection panel when a tile is clicked on
                 message = Some(Message::DescriptionClear);
                 if let Some(contents) = contents {
-                    if let CellContents::Agent(agent) = contents {
+                    if let TileContents::Agent(agent) = contents {
                         message = Some(Message::DescriptionChanged(agent));
                     }
                 }
