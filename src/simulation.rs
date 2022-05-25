@@ -293,10 +293,12 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                         bounds.height / u.dimensions.height as f32);
 
             // draw each cell
-            for (coord, cell) in u.cells().iter() {
-                frame.fill_rectangle(Point::new(coord.x as f32 * size.0,  coord.y as f32 * size.1), Size { width: size.0, height: size.1 }, iced::canvas::Fill::from(
-                    cell.color()
-                ));
+            for cell in u.cells() {
+                frame.fill_rectangle(
+                    Point::new(cell.coord.x as f32 * size.0,  cell.coord.y as f32 * size.1),
+                    Size { width: size.0, height: size.1 },
+                    iced::canvas::Fill::from(cell.color())
+                );
             }
         });
 

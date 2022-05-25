@@ -9,7 +9,7 @@ use rand::{Rng, thread_rng};
 
 use crate::gene::{ActionType, Gene};
 use crate::gene::GeneParse;
-use crate::universe::{Coordinate, Sense};
+use crate::universe::Sense;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Node {
@@ -40,41 +40,6 @@ impl Default for Facing {
 }
 
 impl Facing {
-    pub(crate) fn transform(&self, coord: &Coordinate, dimensions: iced::Size<usize>) -> Option<Coordinate> {
-        use Facing::*;
-
-        return match self {
-            Up => {
-                if coord.y == 0 {
-                    None
-                } else {
-                    Some(Coordinate::new(coord.x, coord.y - 1))
-                }
-            },
-            Down => {
-                if coord.y >= dimensions.height - 1 {
-                    None
-                } else {
-                    Some(Coordinate::new(coord.x, coord.y + 1))
-                }
-            },
-            Left => {
-                if coord.x == 0 {
-                    None
-                } else {
-                    Some(Coordinate::new(coord.x - 1, coord.y))
-                }
-            },
-            Right => {
-                if coord.x >= dimensions.width - 1 {
-                    None
-                } else {
-                    Some(Coordinate::new(coord.x + 1, coord.y))
-                }
-            }
-        }
-    }
-
     pub(crate) fn turn_left(&self) -> Self {
         use Facing::*;
 
