@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::hash::Hash;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ptr::drop_in_place;
 
 use rand::{Rng, thread_rng};
 
@@ -121,10 +122,10 @@ impl fmt::Display for Tile {
 }
 
 impl Tile {
-    pub(crate) fn new(coord: Coordinate) -> Self {
+    pub(crate) fn new(coord: Coordinate, contents: TileContents) -> Self {
         Self {
             coord,
-            contents: TileContents::Food(0)
+            contents
         }
     }
 
@@ -173,69 +174,49 @@ impl Universe {
             None => rand::SeedableRng::from_entropy()
         };
 
-        Self {
-            tiles: {
-                let mut universe: HashMap<Coordinate, RefCell<Tile>> = HashMap::new();
+        let mut u = Self {
+            tiles: HashMap::new(),
+            dimensions
+        };
 
-                for _ in 0..agents {
-                    'occupied: loop {
-                        let coord = Coordinate::new(
-                            prng.gen_range(0..dimensions.width),
-                            prng.gen_range(0..dimensions.height)
-                        );
+        for _ in 0..agents {
+            'occupied: loop {
+                let coord = Coordinate::new(
+                    prng.gen_range(0..dimensions.width),
+                    prng.gen_range(0..dimensions.height)
+                );
 
-                        if !universe.contains_key(&coord) {
-                            match Agent::from_prng(complexity, &mut prng) {
-                                Ok(agent) => {
-                                    universe.insert(coord, {
-                                        let mut t = Tile::new(coord);
-                                        t.contents = TileContents::Agent(agent);
-
-                                        RefCell::new(t)
-                                    } );
-                                    break 'occupied;
-                                },
-                                Err(..) => {
-                                    continue 'occupied;
-                                }
-                            }
+                if u.get(&coord).is_none() {
+                    match Agent::from_prng(complexity, &mut prng) {
+                        Ok(agent) => {
+                            u.put(Tile::new(coord, TileContents::Agent(agent)));
+                            break 'occupied;
+                        },
+                        Err(..) => {
+                            continue 'occupied;
                         }
                     }
                 }
-
-                universe
-            },
-
-            dimensions
+            }
         }
+
+        u
     }
 
     pub(crate) fn update(&mut self) {
         let mut births: Vec<Tile> = Vec::new();
-        for (coord, tile) in self.tiles.iter() {
-            if let TileContents::Agent(ref mut agent) = tile.borrow_mut().contents {
-                // check if the creature reproduces
+        for coord in self.coords() {
+            if let TileContents::Agent(ref mut agent) = self.get_mut(&coord).unwrap().contents {
                 if thread_rng().gen_range(0..=255) < agent.fitness {
-                    // get the birth coordinate and offset it appropriately
-                    let mut birth_coord = coord.clone();
-                    birth_coord.offset(CoordinateOffset::from_facing(agent.facing.opposite(), &self.dimensions));
+                    let mut child_coord = coord.clone();
+                    let child_offset = CoordinateOffset::from_facing(agent.facing.opposite(), &self.dimensions);
+                    child_coord.offset(child_offset);
 
-                    // if there is an empty space behind it
-                    if self.tiles.get(&birth_coord).is_none() {
-                        // reset the fitness of the parent, even if reproduction fails
+                    if self.get(&child_coord).is_none() {
                         agent.fitness = 0u8;
 
-                        match crate::agent::Agent::from_string(agent.reproduce()) {
-                            Ok(child) => {
-                                let mut t = Tile::new(birth_coord);
-
-                                // add the child to the new tile
-                                t.contents = TileContents::Agent(child);
-
-                                // push to list of tiles to be added
-                                births.push(t);
-                            },
-                            Err(..) => {  } // do nothing if the offspring is non-viable
+                        if let Ok(child) = agent.reproduce() {
+                            births.push(Tile::new(child_coord, TileContents::Agent(child)));
                         }
                     }
                 }
@@ -244,20 +225,20 @@ impl Universe {
 
         // add new births to the HashMap of tiles
         for tile in births.drain(0..births.len()) {
-            self.tiles.insert(tile.coord.clone(), RefCell::new(tile));
+            self.put(tile);
         }
 
         // perform action
         for tile in self.tiles.values() {
             if let TileContents::Agent(agent) = &tile.borrow().contents {
                 if let Some(action) = agent.resolve(&Sense::new(self, tile)) {
-                    self.perform_action(tile, action);
+                    self.perform_action(tile.borrow().coord, action);
                 }
             }
         }
     }
 
-    fn perform_action(&self, _tile: &RefCell<Tile>, _action: ActionType) {
+    fn perform_action(&self, _coord: Coordinate, _action: ActionType) {
         // TODO: Re-implement Universe::perform_action
 
     }
@@ -271,9 +252,27 @@ impl Universe {
         } ).collect::<Vec<Tile>>()
     }
 
-    pub(crate) fn get(&self, coord: &Coordinate) -> Option<Tile> {
+    pub(crate) fn coords(&self) -> Vec<Coordinate> {
+        self.tiles.keys().cloned().collect::<Vec<Coordinate>>()
+    }
+
+    pub(crate) fn get(&self, coord: &Coordinate) -> Option<std::cell::Ref<'_, Tile>> {
         match self.tiles.get(coord) {
-            Some(tile) => Some(tile.borrow().clone()),
+            Some(tile) => Some(tile.borrow()),
+            None => None
+        }
+    }
+
+    fn get_mut(&self, coord: &Coordinate) -> Option<std::cell::RefMut<'_, Tile>> {
+        match self.tiles.get(coord) {
+            Some(tile) => Some(tile.borrow_mut()),
+            None => None
+        }
+    }
+
+    fn put(&mut self, tile: Tile) -> Option<Tile> {
+        match self.tiles.insert(tile.coord, RefCell::new(tile)) {
+            Some(old) => Some(old.borrow().clone()),
             None => None
         }
     }

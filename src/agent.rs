@@ -285,8 +285,11 @@ impl Agent {
         }
     }
 
-    pub(crate) fn reproduce(&self) -> String {
-        crate::gene::Genome::mutate(self.genome.clone())
+    pub(crate) fn reproduce(&self) -> Result<Self, std::io::Error> {
+        match Self::from_string(crate::gene::Genome::mutate(self.genome.clone())) {
+            Ok(agent) => Ok(agent),
+            Err(e) => Err(e)
+        }
     }
 
     pub(crate) fn from_prng(complexity: usize, prng: &mut rand::rngs::StdRng) -> Result<Self, std::io::Error> {

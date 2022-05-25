@@ -315,9 +315,10 @@ impl UniverseInterface {
             (point.y / (self.bounds.unwrap().height / u.dimensions.height as f32)) as usize
         );
 
-        match u.get(&coord) {
-            Some(tile) => {
-                Some(tile.contents.clone())
+        let tile = u.get(&coord);
+        match tile {
+            Some(t) => {
+                Some(t.contents.clone())
             }
             None => None
         }
