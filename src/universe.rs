@@ -128,6 +128,17 @@ impl Tile {
             contents
         }
     }
+
+    fn facing(&self, dimensions: &iced::Size<usize>) -> Option<Coordinate> {
+        if let TileContents::Agent(agent) = &self.contents {
+            let mut coord = self.coord.clone();
+            coord.offset(CoordinateOffset::from_facing(agent.facing, dimensions));
+
+            return Some(coord);
+        }
+
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -154,8 +165,8 @@ pub(crate) struct Universe {
 
 impl Default for Universe {
     fn default() -> Self {
-        let dimensions: iced::Size<usize> = iced::Size::new(128, 128);
-        Self::new(dimensions, 128, 64, None)
+        let dimensions: iced::Size<usize> = iced::Size::new(32, 32);
+        Self::new(dimensions, 64, 128, None)
     }
 }
 
@@ -242,18 +253,68 @@ impl Universe {
         }
 
         // perform action
-        for tile in self.tiles.values() {
-            if let TileContents::Agent(agent) = &tile.borrow().contents {
-                if let Some(action) = agent.resolve(&Sense::new(self, tile)) {
-                    self.perform_action(tile.borrow().coord, action);
+        for tile in self.tiles() {
+            if let TileContents::Agent(agent) = &tile.contents {
+                if let Some(action) = agent.resolve(&Sense::new(self, &tile)) {
+                    self.perform_action(tile.coord, agent, action);
                 }
             }
         }
     }
 
-    fn perform_action(&self, _coord: Coordinate, _action: ActionType) {
+    fn perform_action(&mut self, coord: Coordinate, agent: &Agent, action: ActionType) {
         // TODO: Re-implement Universe::perform_action
+        use crate::gene::ActionType::*;
+        match action {
+            Move => {
+                let target = self.get(&coord).unwrap().facing(&self.dimensions).unwrap();
 
+                let target_tile = match self.get(&target) {
+                    Some(t) => Some(t.contents.clone()),
+                    None => None
+                };
+
+                let mut can_move = false;
+                let mut can_eat = false;
+                match target_tile {
+                    Some(target_contents) => {
+                        if let TileContents::Food(..) = target_contents {
+                            can_eat = true;
+                        }
+                    },
+                    None => can_move = true
+                }
+
+                if can_eat {
+                    self.decrement_food_at(&target);
+
+                    let mut a = agent.clone();
+                    a.fitness += 1;
+                    self.get_mut(&coord).unwrap().contents = TileContents::Agent(a);
+                }
+
+                if can_move {
+                    let tile_contents = self.tiles.remove(&coord).unwrap().borrow().contents.clone();
+                    self.put(
+                        Tile::new(target, tile_contents)
+                    );
+                }
+            },
+            TurnLeft => {
+
+            },
+            TurnRight => {
+
+            },
+            Kill => {
+
+            },
+            ProduceFood => {
+                let target = self.get(&coord).unwrap().facing(&self.dimensions).unwrap();
+
+                self.increment_food_at(&target);
+            }
+        }
     }
 }
 
@@ -364,7 +425,7 @@ pub(crate) struct Sense {
 }
 
 impl Sense {
-    pub(crate) fn new(_universe: &Universe, _tile: &RefCell<Tile>) -> Self {
+    pub(crate) fn new(_universe: &Universe, _tile: &Tile) -> Self {
         Self {
 
         }

@@ -25,7 +25,7 @@ impl fmt::Display for Node {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) enum Facing {
     Up,
     Down,

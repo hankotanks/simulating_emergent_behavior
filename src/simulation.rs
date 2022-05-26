@@ -301,9 +301,8 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                     }
                 }
 
-            }, Keyboard(..) => {
-                self.tick();
-                self.should_redraw = true;
+            }, Keyboard(keyboard_event) => {
+                message = self.process_keyboard_event(keyboard_event);
             }
         }
 
@@ -367,6 +366,21 @@ impl UniverseInterface {
             },
             None => None
         }
+    }
+
+    fn process_keyboard_event(&mut self, event: iced::keyboard::Event) -> Option<Message> {
+        use iced::keyboard::Event::*;
+
+        match event {
+            KeyPressed { .. } => {
+                // TODO: Should each update step be a Message
+                self.tick();
+                self.should_redraw = true;
+            },
+            _ => {  }
+        }
+
+        None
     }
 
     fn process_mouse_event(&self, event: iced::mouse::Event, cursor: Cursor) -> Option<Message> {
