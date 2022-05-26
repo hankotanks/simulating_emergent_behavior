@@ -3,6 +3,7 @@ use std::cell::RefCell;
 
 use std::fmt;
 use std::fmt::Formatter;
+use std::path::Path;
 
 use iced::{Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
@@ -327,9 +328,12 @@ impl iced::canvas::Program<Message> for UniverseInterface {
 
             // draw each tile
             for tile in u.tiles() {
-                frame.fill_rectangle(
-                    Point::new(tile.coord.x as f32 * size.0, tile.coord.y as f32 * size.1),
-                    Size { width: size.0, height: size.1 },
+                let path = iced::canvas::Path::circle(
+                    Point::new(tile.coord.x as f32 * size.0 + size.0 / 2f32, tile.coord.y as f32 * size.1 + size.1 / 2f32),
+                    (size.0 + size.1) / 4f32);
+
+                frame.fill(
+                    &path,
                     iced::canvas::Fill::from(
                         match &tile.contents { // get the matching tile color
                             TileContents::Food(..) => FOOD_COLOR,
