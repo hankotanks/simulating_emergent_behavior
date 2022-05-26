@@ -3,9 +3,8 @@ use std::cell::RefCell;
 
 use std::fmt;
 use std::fmt::Formatter;
-use std::path::Path;
 
-use iced::{Element, Point, Rectangle, Size};
+use iced::{Element, Point, Rectangle};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
