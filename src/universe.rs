@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use rand::{Rng, thread_rng};
 
-use crate::agent::Agent;
+use crate::agent::{Agent, Facing};
 use crate::gene::{ActionType, SenseType};
 
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
@@ -38,6 +38,19 @@ impl Coordinate {
 
         self.x = x as usize;
         self.y = y as usize;
+    }
+
+    pub(crate) fn neighbors(&self, dimensions: &iced::Size<usize>) -> Vec<Coordinate> {
+        use Facing::*;
+
+        let mut neighbors = Vec::new();
+        for face in vec![Up, Down, Left, Right].drain(0..4) {
+            let mut n = self.clone();
+            n.offset(CoordinateOffset::from_facing(face, dimensions));
+            neighbors.push(n);
+        }
+
+        neighbors
     }
 }
 
@@ -183,8 +196,29 @@ impl Universe {
     }
 
     pub(crate) fn update(&mut self) {
+        // food diffusion
+        'topple: loop {
+            for coord in self.coordinates() {
+                 self.topple(&coord);
+            }
+
+            let mut invalid = false;
+            for coord in self.coordinates() {
+                if let TileContents::Food(amount) = self.get(&coord).unwrap().contents {
+                    if amount > 4 {
+                        invalid = true;
+                    }
+                }
+            }
+
+            if !invalid {
+                break 'topple;
+            }
+        }
+
+        // births
         let mut births: Vec<Tile> = Vec::new();
-        for coord in self.coords() {
+        for coord in self.coordinates() {
             if let TileContents::Agent(ref mut agent) = self.get_mut(&coord).unwrap().contents {
                 if thread_rng().gen_range(0..=255) < agent.fitness {
                     let mut child_coord = coord.clone();
@@ -226,12 +260,10 @@ impl Universe {
 // helper methods
 impl Universe {
     pub(crate) fn tiles(&self) -> Vec<Tile> {
-        self.tiles.iter().map(|tile| {
-            tile.1.borrow().clone()
-        } ).collect::<Vec<Tile>>()
+        self.tiles.values().cloned().map(|tile| tile.into_inner()).collect::<Vec<Tile>>()
     }
 
-    pub(crate) fn coords(&self) -> Vec<Coordinate> {
+    pub(crate) fn coordinates(&self) -> Vec<Coordinate> {
         self.tiles.keys().cloned().collect::<Vec<Coordinate>>()
     }
 
@@ -250,9 +282,78 @@ impl Universe {
     }
 
     fn put(&mut self, tile: Tile) -> Option<Tile> {
-        match self.tiles.insert(tile.coord, RefCell::new(tile)) {
-            Some(old) => Some(old.borrow().clone()),
+        let prev = match self.tiles.remove(&tile.coord) {
+            Some(tile) => Some(tile.into_inner()),
             None => None
+        };
+
+        self.tiles.insert(tile.coord, RefCell::new(tile));
+
+        prev
+    }
+
+    fn topple(&mut self, coord: &Coordinate) {
+        if let TileContents::Food(amount) = self.get(coord).unwrap().contents {
+            if amount <= 4 {
+                return;
+            }
+        } else {
+            return;
+        }
+
+        let mut count = 0;
+        for neighbor in coord.neighbors(&self.dimensions) {
+            match self.increment_food_at(&neighbor) {
+                Some(..) => { count += 1; },
+                None => {  }
+            }
+        }
+
+        for _ in 0..count {
+            self.decrement_food_at(coord);
+        }
+    }
+
+    // Some(amount) if TileContents::Food, Some(0) if empty, None otherwise
+    fn food_at(&self, coord: &Coordinate) -> Option<u8> {
+        match self.get(coord) {
+            Some(tile) => {
+                if let TileContents::Food(current) = tile.contents {
+                    Some(current)
+                } else {
+                    None
+                }
+            },
+            None => {
+                Some(0)
+            }
+        }
+    }
+
+    fn decrement_food_at(&mut self, coord: &Coordinate) {
+        match self.food_at(coord) {
+            Some(amount) => {
+                self.tiles.remove(coord);
+                if amount > 1 {
+                    self.put(
+                        Tile::new(coord.clone(), TileContents::Food(amount - 1))
+                    );
+                }
+            },
+            None => {  }
+        }
+    }
+
+    // returns Some(amount) if food was added at the given coordinate, otherwise None
+    fn increment_food_at(&mut self, coord: &Coordinate) -> Option<u8> {
+        match self.food_at(coord) {
+            Some(amount) => {
+                self.put(
+                    Tile::new(coord.clone(), TileContents::Food(amount + 1))
+                );
+
+                Some(amount + 1)
+            }, None => None
         }
     }
 }
