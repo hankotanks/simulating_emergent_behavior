@@ -129,7 +129,7 @@ impl Tile {
         }
     }
 
-    fn facing(&self, dimensions: &iced::Size<usize>) -> Option<Coordinate> {
+    fn coordinate_facing(&self, dimensions: &iced::Size<usize>) -> Option<Coordinate> {
         if let TileContents::Agent(agent) = &self.contents {
             let mut coord = self.coord.clone();
             coord.offset(CoordinateOffset::from_facing(agent.facing, dimensions));
@@ -276,7 +276,7 @@ impl Universe {
                     if let Some(action) = agent.resolve(&Sense::new(self, &tile)) {
                         self.perform_action(tile.coord, agent, action);
                     }
-                }
+                },
                 TileContents::Food(amount) => {
                     let upper_bound = (10 as f32 * self.settings.food_decay_multiplier.recip()) as u8;
                     if thread_rng().gen_range(0..=upper_bound) < *amount {
@@ -289,17 +289,22 @@ impl Universe {
     }
 
     fn perform_action(&mut self, coord: Coordinate, agent: &Agent, action: ActionType) {
-        // TODO: Re-implement Universe::perform_action
         use crate::gene::ActionType::*;
         match action {
             Move => {
-                let target = self.get(&coord).unwrap().facing(&self.dimensions).unwrap();
+                // information about the cell in front of the agent
+                let target = self.get(&coord).unwrap().coordinate_facing(&self.dimensions);
+                if target.is_none() {
+                    return;
+                }
 
+                let target = target.unwrap();
                 let target_tile = match self.get(&target) {
                     Some(t) => Some(t.contents.clone()),
                     None => None
                 };
 
+                // determine whether the agent should move, eat, or rest
                 let mut can_move = false;
                 let mut can_eat = false;
                 match target_tile {
@@ -311,6 +316,7 @@ impl Universe {
                     None => can_move = true
                 }
 
+                // eat
                 if can_eat {
                     self.decrement_food_at(&target);
 
@@ -319,6 +325,7 @@ impl Universe {
                     self.get_mut(&coord).unwrap().contents = TileContents::Agent(a);
                 }
 
+                // move
                 if can_move {
                     let tile_contents = self.tiles.remove(&coord).unwrap().borrow().contents.clone();
                     self.put(
@@ -326,19 +333,44 @@ impl Universe {
                     );
                 }
             },
-            TurnLeft => {
+            TurnLeft | TurnRight => {
+                let mut a = agent.clone();
 
-            },
-            TurnRight => {
+                // turn in the proper direction
+                a.facing = match action {
+                    TurnLeft => a.facing.turn_left(),
+                    TurnRight => a.facing.turn_right(),
+                    _ => unreachable!()
+                };
 
+                // add the modified agent back to Universe::tiles
+                self.put(
+                    Tile::new(coord, TileContents::Agent(a))
+                );
             },
             Kill => {
+                let target_coord = self.get(&coord).unwrap().coordinate_facing(&self.dimensions);
+                if let Some(target_coord) = target_coord {
+                    let target = match self.get(&target_coord) {
+                        Some(t) => Some(t.contents.clone()),
+                        None => None
+                    };
 
+                    if let Some(TileContents::Agent(target)) = target {
+                        self.put(
+                            Tile::new(target_coord, TileContents::Food(target.fitness))
+                        );
+                    }
+                }
             },
             ProduceFood => {
-                let target = self.get(&coord).unwrap().facing(&self.dimensions).unwrap();
+                // get cell in front of the agent
+                let target_coord = self.get(&coord).unwrap().coordinate_facing(&self.dimensions);
 
-                self.increment_food_at(&target);
+                match target_coord {
+                    Some(target) => { self.increment_food_at(&target); },
+                    None => {  }
+                }
             }
         }
     }
@@ -388,15 +420,15 @@ impl Universe {
             return;
         }
 
-        let mut count = 0;
+        let mut neighbor_count = 0;
         for neighbor in coord.neighbors(&self.dimensions) {
             match self.increment_food_at(&neighbor) {
-                Some(..) => { count += 1; },
+                Some(..) => { neighbor_count += 1; },
                 None => {  }
             }
         }
 
-        for _ in 0..count {
+        for _ in 0..neighbor_count {
             self.decrement_food_at(coord);
         }
     }

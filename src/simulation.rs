@@ -377,7 +377,7 @@ impl UniverseInterface {
 
         match event {
             KeyPressed { .. } => {
-                // TODO: Should each update step be a Message
+                // TODO: Should each update step be a Message?
                 self.tick();
                 self.should_redraw = true;
             },
