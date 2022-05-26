@@ -4,12 +4,25 @@ use std::cell::RefCell;
 use std::fmt;
 use std::fmt::Formatter;
 
-use iced::{Color, Element, Point, Rectangle, Size};
+use iced::{Element, Point, Rectangle, Size};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
 use crate::agent::Agent;
-use crate::universe::{TileContents, Coordinate, Universe};
+use crate::universe::{TileContents, Coordinate, Universe, Tile};
+
+struct Color(u8, u8, u8);
+
+impl Color {
+    fn get(&self) -> iced::Color {
+        iced::Color::from([self.0 as f32 / 255f32, self.1 as f32 / 255f32, self.2 as f32 / 255f32])
+    }
+}
+
+const WALL_COLOR: Color = Color(0x00, 0x00, 0x00);
+const FOOD_COLOR: Color = Color(0xFF, 0x64, 0x64);
+const AGENT_COLOR: Color = Color(0x64, 0x64, 0xFF);
+const EMPTY_COLOR: Color = Color(0x1A, 0x1A, 0x1A);
 
 #[derive(Clone)]
 pub(crate) enum Message {
@@ -116,16 +129,8 @@ impl iced::Sandbox for Simulation {
 
     fn view(&mut self) -> Element<'_, Self::Message> {
         use iced::Length;
-        let ui = UniverseInterface::new(Rc::clone(&self.universe));
-        let ui = iced::Canvas::new(ui)
-            .width(Length::FillPortion(2u16))
-            .height(Length::Fill);
 
-        let tt: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.tooltip.as_str(), iced::tooltip::Position::FollowCursor);
-
-        iced::Row::new()
-            .push(tt)
-            .push(self.inspect())
+        iced::Container::new(self.widgets())
             .height(Length::Fill)
             .width(Length::Fill)
             .into()
@@ -161,7 +166,7 @@ impl Simulation {
         self.state_scrollable.snap_to(0f32);
     }
 
-    fn inspect(&mut self) -> iced::Container<Message> {
+    fn widgets(&mut self) -> iced::Container<Message> {
         use iced::Length;
 
         // the dropdown where different DescriptionPanes can be selected
@@ -207,10 +212,29 @@ impl Simulation {
                 left: 10
             } );
 
-        // put it all together
-        let content = iced::Column::new()
+        // put the inspection panel together
+        let inspector = iced::Column::new()
             .push(picker)
-            .push(desc);
+            .push(desc)
+            .width(Length::FillPortion(1u16))
+            .height(Length::Fill);
+
+        // start building the universe interface
+        let ui = UniverseInterface::new(Rc::clone(&self.universe));
+        let ui = iced::Canvas::new(ui)
+            .width(Length::FillPortion(2u16))
+            .height(Length::Fill);
+
+        // add the tooltip element
+        let ui: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.tooltip.as_str(), iced::tooltip::Position::FollowCursor);
+
+        // TODO: Add 10px border on Canvas element
+
+        let content = iced::Row::new()
+            .push(ui)
+            .push(inspector)
+            .width(Length::Fill)
+            .height(Length::Fill);
 
         // wrap it in a container and return
         iced::Container::new(content)
@@ -280,7 +304,7 @@ impl iced::canvas::Program<Message> for UniverseInterface {
             // draw the background of the canvas
             frame.fill(
                 &iced::canvas::Path::rectangle(Point::ORIGIN, frame.size()),
-                Color::from_rgb8(0x40, 0x44, 0x4B));
+                EMPTY_COLOR.get());
 
             // maintain a mutable reference to the universe
             let u = self.universe.as_ref().borrow();
@@ -294,7 +318,13 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                 frame.fill_rectangle(
                     Point::new(tile.coord.x as f32 * size.0, tile.coord.y as f32 * size.1),
                     Size { width: size.0, height: size.1 },
-                    iced::canvas::Fill::from(tile.color())
+                    iced::canvas::Fill::from(
+                        match &tile.contents { // get the matching tile color
+                            TileContents::Food(..) => FOOD_COLOR,
+                            TileContents::Agent(..) => AGENT_COLOR,
+                            TileContents::Wall => WALL_COLOR
+                        }.get()
+                    )
                 );
             }
         });

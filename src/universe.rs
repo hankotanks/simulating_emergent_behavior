@@ -3,24 +3,11 @@ use std::fmt::Formatter;
 use std::hash::Hash;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ptr::drop_in_place;
 
 use rand::{Rng, thread_rng};
 
 use crate::agent::Agent;
 use crate::gene::{ActionType, SenseType};
-
-struct Color(u8, u8, u8);
-
-impl Color {
-    fn get(&self) -> iced::Color {
-        iced::Color::from([self.0 as f32 / 255f32, self.1 as f32 / 255f32, self.2 as f32 / 255f32])
-    }
-}
-
-const AGENT_COLOR: Color = Color(0x96, 0x64, 0xFF);
-const WALL_COLOR: Color = Color(0xFF, 0xFF, 0xFF);
-const FOOD_COLOR: Color = Color(0xFF, 0x64, 0x00);
 
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 pub(crate) struct Coordinate {
@@ -127,14 +114,6 @@ impl Tile {
             coord,
             contents
         }
-    }
-
-    pub(crate) fn color(&self) -> iced::Color {
-        match &self.contents {
-            TileContents::Food(..) => FOOD_COLOR,
-            TileContents::Agent(..) => AGENT_COLOR,
-            TileContents::Wall => WALL_COLOR
-        }.get()
     }
 }
 
