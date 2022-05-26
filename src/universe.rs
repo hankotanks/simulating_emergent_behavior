@@ -464,7 +464,7 @@ impl Sense {
     pub(crate) fn get(&self, sense: &SenseType) -> f32 {
         // use crate::gene::SenseType::*;
         match sense {
-            _ => 1f32
+            _ => thread_rng().gen_range(1..=100) as f32 / 100f32
         }
     }
 }
