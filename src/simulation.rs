@@ -17,6 +17,10 @@ impl Color {
     fn get(&self) -> iced::Color {
         iced::Color::from([self.0 as f32 / 255f32, self.1 as f32 / 255f32, self.2 as f32 / 255f32])
     }
+
+    fn scale_alpha(&self, scale: f32) -> iced::Color {
+        iced::Color::from_rgba8(self.0, self.1, self.2, scale)
+    }
 }
 
 const WALL_COLOR: Color = Color(0x00, 0x00, 0x00);
@@ -334,10 +338,10 @@ impl iced::canvas::Program<Message> for UniverseInterface {
                     &path,
                     iced::canvas::Fill::from(
                         match &tile.contents { // get the matching tile color
-                            TileContents::Food(..) => FOOD_COLOR,
-                            TileContents::Agent(..) => AGENT_COLOR,
-                            TileContents::Wall => WALL_COLOR
-                        }.get()
+                            TileContents::Food(amount) => FOOD_COLOR.scale_alpha(*amount as f32 / 10f32),
+                            TileContents::Agent(..) => AGENT_COLOR.get(),
+                            TileContents::Wall => WALL_COLOR.get()
+                        }
                     )
                 );
             }

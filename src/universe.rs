@@ -158,8 +158,23 @@ impl fmt::Display for TileContents {
     }
 }
 
+struct UniverseSettings {
+    reproduction_multiplier: f32,
+    food_decay_multiplier: f32
+}
+
+impl Default for UniverseSettings {
+    fn default() -> Self {
+        Self {
+            reproduction_multiplier: 1.0,
+            food_decay_multiplier: 0.5
+        }
+    }
+}
+
 pub(crate) struct Universe {
     tiles: HashMap<Coordinate, RefCell<Tile>>,
+    settings: UniverseSettings,
     pub(crate) dimensions: iced::Size<usize>
 }
 
@@ -179,6 +194,7 @@ impl Universe {
 
         let mut u = Self {
             tiles: HashMap::new(),
+            settings: UniverseSettings::default(),
             dimensions
         };
 
@@ -231,7 +247,8 @@ impl Universe {
         let mut births: Vec<Tile> = Vec::new();
         for coord in self.coordinates() {
             if let TileContents::Agent(ref mut agent) = self.get_mut(&coord).unwrap().contents {
-                if thread_rng().gen_range(0..=255) < agent.fitness {
+                let adjusted_fitness = (agent.fitness as f32 * self.settings.reproduction_multiplier) as u8;
+                if thread_rng().gen_range(0..=255) < adjusted_fitness {
                     let mut child_coord = coord.clone();
                     let child_offset = CoordinateOffset::from_facing(agent.facing.opposite(), &self.dimensions);
                     child_coord.offset(child_offset);
@@ -254,10 +271,19 @@ impl Universe {
 
         // perform action
         for tile in self.tiles() {
-            if let TileContents::Agent(agent) = &tile.contents {
-                if let Some(action) = agent.resolve(&Sense::new(self, &tile)) {
-                    self.perform_action(tile.coord, agent, action);
+            match &tile.contents {
+                TileContents::Agent(agent) => {
+                    if let Some(action) = agent.resolve(&Sense::new(self, &tile)) {
+                        self.perform_action(tile.coord, agent, action);
+                    }
                 }
+                TileContents::Food(amount) => {
+                    let upper_bound = (10 as f32 * self.settings.food_decay_multiplier.recip()) as u8;
+                    if thread_rng().gen_range(0..=upper_bound) < *amount {
+                        self.decrement_food_at(&tile.coord);
+                    }
+                },
+                _ => {  }
             }
         }
     }
@@ -289,7 +315,7 @@ impl Universe {
                     self.decrement_food_at(&target);
 
                     let mut a = agent.clone();
-                    a.fitness += 1;
+                    a.increment_fitness();
                     self.get_mut(&coord).unwrap().contents = TileContents::Agent(a);
                 }
 
@@ -409,11 +435,15 @@ impl Universe {
     fn increment_food_at(&mut self, coord: &Coordinate) -> Option<u8> {
         match self.food_at(coord) {
             Some(amount) => {
-                self.put(
-                    Tile::new(coord.clone(), TileContents::Food(amount + 1))
-                );
+                if amount < 255 {
+                    self.put(
+                        Tile::new(coord.clone(), TileContents::Food(amount + 1))
+                    );
 
-                Some(amount + 1)
+                    Some(amount + 1)
+                } else {
+                    None
+                }
             }, None => None
         }
     }

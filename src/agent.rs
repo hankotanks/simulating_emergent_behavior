@@ -292,6 +292,12 @@ impl Agent {
         }
     }
 
+    pub(crate) fn increment_fitness(&mut self) {
+        if self.fitness < 255 {
+            self.fitness += 1;
+        }
+    }
+
     pub(crate) fn from_prng(complexity: usize, prng: &mut rand::rngs::StdRng) -> Result<Self, std::io::Error> {
         let mut genome: Vec<Gene> = Vec::new();
         for _ in 0..complexity {
