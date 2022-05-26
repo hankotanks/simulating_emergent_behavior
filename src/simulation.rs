@@ -9,7 +9,7 @@ use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
 use crate::agent::Agent;
-use crate::universe::{TileContents, Coordinate, Universe, Tile};
+use crate::universe::{TileContents, Coordinate, Universe};
 
 struct Color(u8, u8, u8);
 
@@ -75,6 +75,9 @@ impl fmt::Display for DescriptionPane {
         )
     }
 }
+
+// the size of the padding between widgets, used to calculate the cell under the user's cursor
+const PADDING: u16 = 10;
 
 #[derive(Default)]
 pub(crate) struct Simulation {
@@ -178,7 +181,7 @@ impl Simulation {
             .width(Length::Fill);
         let picker = iced::Container::new(picker)
             .width(Length::Fill)
-            .padding(iced::Padding::new(10));
+            .padding(iced::Padding::new(PADDING));
 
         // a button used to copy the description
         let copy = iced::Button::new(
@@ -189,7 +192,7 @@ impl Simulation {
         let copy = iced::Container::new(copy)
             .width(Length::Fill)
             .padding(iced::Padding {
-                top: 10,
+                top: PADDING,
                 right: 0,
                 bottom: 0,
                 left: 0 } );
@@ -207,9 +210,9 @@ impl Simulation {
             .scrollbar_width(0)
             .padding(iced::Padding {
                 top: 0,
-                right: 10,
-                bottom: 10,
-                left: 10
+                right: PADDING,
+                bottom: PADDING,
+                left: PADDING
             } );
 
         // put the inspection panel together
@@ -222,13 +225,22 @@ impl Simulation {
         // start building the universe interface
         let ui = UniverseInterface::new(Rc::clone(&self.universe));
         let ui = iced::Canvas::new(ui)
-            .width(Length::FillPortion(2u16))
+            .width(Length::Fill)
             .height(Length::Fill);
+
+        // wrap the interface in a container so it can be given a border
+        let ui = iced::Container::new(ui)
+            .width(Length::FillPortion(2u16))
+            .height(Length::Fill)
+            .padding(iced::Padding {
+                top: PADDING,
+                right: 0,
+                bottom: PADDING,
+                left: PADDING
+            } );
 
         // add the tooltip element
         let ui: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.tooltip.as_str(), iced::tooltip::Position::FollowCursor);
-
-        // TODO: Add 10px border on Canvas element
 
         let content = iced::Row::new()
             .push(ui)
@@ -341,15 +353,15 @@ impl UniverseInterface {
 
         // get the coordinates of the tile
         let coord = Coordinate::new(
-            (point.x / (self.bounds.unwrap().width / u.dimensions.width as f32)) as usize,
-            (point.y / (self.bounds.unwrap().height / u.dimensions.height as f32)) as usize
+            ((point.x - PADDING as f32) / (self.bounds.unwrap().width / u.dimensions.width as f32)) as usize,
+            ((point.y - PADDING as f32) / (self.bounds.unwrap().height / u.dimensions.height as f32)) as usize
         );
 
         let tile = u.get(&coord);
         match tile {
             Some(t) => {
                 Some(t.contents.clone())
-            }
+            },
             None => None
         }
     }
