@@ -1,48 +1,44 @@
+mod gene;
+
 use std::fmt;
 use std::fmt::Formatter;
 
 use petgraph::graph;
-use petgraph::Direction;
 use petgraph::graph::NodeIndex;
 
 use rand::{Rng, thread_rng};
 use rand::rngs::StdRng;
 
-use crate::gene::{ActionType, Gene};
-use crate::gene::GeneParse;
+use gene::Gene;
+use gene::GeneParse;
+
 use crate::universe::Sense;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Node {
-    Sense(crate::gene::SenseType),
-    Action(crate::gene::ActionType),
+    Sense(gene::SenseType),
+    Action(gene::ActionType),
     Internal(f32)
 }
 
-impl fmt::Display for Node {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
 #[derive(Debug, Copy, Clone)]
-pub(crate) enum Facing {
+pub(crate) enum Direction {
     Up,
     Down,
     Left,
     Right
 }
 
-impl Default for Facing {
+impl Default for Direction {
     fn default() -> Self {
-        use Facing::*;
+        use Direction::*;
         vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
     }
 }
 
-impl Facing {
-    pub(crate) fn turn_left(&self) -> Self {
-        use Facing::*;
+impl Direction {
+    pub(crate) fn left(&self) -> Self {
+        use Direction::*;
 
         match self {
             Up => Left,
@@ -52,8 +48,8 @@ impl Facing {
         }
     }
 
-    pub(crate) fn turn_right(&self) -> Self {
-        use Facing::*;
+    pub(crate) fn right(&self) -> Self {
+        use Direction::*;
 
         match self {
             Up => Right,
@@ -64,7 +60,7 @@ impl Facing {
     }
 
     pub(crate) fn opposite(&self) -> Self {
-        use Facing::*;
+        use Direction::*;
         match self {
             Up => Down,
             Down => Up,
@@ -79,11 +75,13 @@ pub(crate) struct Agent {
     brain: graph::Graph<Node, bool>,
     genome: Vec<Gene>,
     pub(crate) fitness: u8,
-    pub(crate) facing: Facing,
-    pub(crate) last_action: Option<ActionType>
+    pub(crate) direction: Direction,
+    pub(crate) history: Vec<gene::ActionType>
 }
 
 impl Agent {
+    const HISTORY_SIZE: usize = 20;
+
     pub(crate) fn new(genome: Vec<Gene>) -> Result<Self, std::io::Error> {
         use GeneParse::*;
         let mut brain: graph::Graph<Node, bool> = graph::Graph::new();
@@ -100,8 +98,8 @@ impl Agent {
         }
 
         for i in 0..(edges.len() / 2) {
-            if let GeneParse::Connection(a, inverted) = &edges[i * 2] {
-                if let GeneParse::Connection(b, ..) = &edges[i * 2 + 1] {
+            if let Connection(a, inverted) = &edges[i * 2] {
+                if let Connection(b, ..) = &edges[i * 2 + 1] {
                     if brain.node_count() == 0 {
                         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Invalid Genome"));
                     }
@@ -113,59 +111,54 @@ impl Agent {
             }
         }
 
-        let mut a = Self {
-            brain,
-            genome,
-            fitness: 0u8,
-            facing: Facing::default(),
-            last_action: None
-        };
-
-        a.prune();
-        a.brain.shrink_to_fit();
-        Ok(a)
-    }
-
-    fn prune(&mut self) {
-        for index in self.brain.node_indices() {
-            match self.brain[index] {
+        for index in brain.node_indices() {
+            match brain[index] {
                 Node::Sense(..) => {
-                    let mut walk = self.brain.neighbors_directed(index, Direction::Incoming).detach();
+                    let mut walk = brain.neighbors_directed(index, petgraph::Direction::Incoming).detach();
                     'sense_deletion: loop {
-                        match walk.next_edge(&self.brain) {
+                        match walk.next_edge(&brain) {
                             Some(t) => {
-                                self.brain.remove_edge(t);
+                                brain.remove_edge(t);
                             },
                             None => break 'sense_deletion
                         }
                     }
                 },
                 Node::Action(..) => {
-                    let mut walk = self.brain.neighbors_directed(index, Direction::Outgoing).detach();
+                    let mut walk = brain.neighbors_directed(index, petgraph::Direction::Outgoing).detach();
                     'action_deletion: loop {
-                        match walk.next_edge(&self.brain) {
+                        match walk.next_edge(&brain) {
                             Some(t) => {
-                                self.brain.remove_edge(t);
+                                brain.remove_edge(t);
                             },
                             None => break 'action_deletion
                         }
                     }
-                }, _ => {  }
+                },
+                _ => {}
             }
         }
+
+        let mut agent = Self {
+            brain,
+            genome,
+            fitness: 0u8,
+            direction: Direction::default(),
+            history: Vec::new()
+        };
 
         let mut retain: Vec<NodeIndex> = Vec::new();
-        for index in self.brain.node_indices() {
-            if let Node::Action(..) = self.brain[index] {
-                self.prune_isolates(index, &mut retain);
+        for index in brain.node_indices() {
+            if let Node::Action(..) = brain[index] {
+                agent.prune(index, &mut retain);
             }
         }
 
-        self.brain.retain_nodes(|brain, n| {
+        agent.brain.retain_nodes(|brain, n| {
             retain.contains(&n) && {
                 match &brain[n] {
                     Node::Action(..) => {
-                        if brain.neighbors_directed(n, Direction::Incoming).count() == 0 {
+                        if brain.neighbors_directed(n, petgraph::Direction::Incoming).count() == 0 {
                             false
                         } else {
                             true
@@ -174,17 +167,21 @@ impl Agent {
                     _ => true
                 }
             }
-        } );
+        });
+
+        agent.brain.shrink_to_fit();
+
+        Ok(agent)
     }
 
-    fn prune_isolates(&mut self, index: NodeIndex, processed: &mut Vec<NodeIndex>) {
+    fn prune(&mut self, index: NodeIndex, processed: &mut Vec<NodeIndex>) {
         processed.push(index);
-        let mut walk = self.brain.neighbors_directed(index, Direction::Incoming).detach();
+        let mut walk = self.brain.neighbors_directed(index, petgraph::Direction::Incoming).detach();
         loop {
             match walk.next_node(&self.brain) {
                 Some(t) => {
                     if !processed.contains(&t) {
-                        self.prune_isolates(t, processed);
+                        self.prune(t, processed);
                     }
                 },
                 None => break
@@ -192,17 +189,16 @@ impl Agent {
         }
     }
 
-    pub(crate)fn resolve(&self, sense: &Sense) -> Option<crate::gene::ActionType> {
-        let mut dominant: Option<(crate::gene::ActionType, f32)> = None;
-        for index in self.brain.externals(Direction::Outgoing) {
+    pub(crate) fn process(&self, sense: &Sense) -> Option<gene::ActionType> {
+        let mut dominant: Option<(gene::ActionType, f32)> = None;
+        for index in self.brain.externals(petgraph::Direction::Outgoing) {
             if let Node::Action(variant) = &self.brain[index] {
-                if let Some(weight) = self.resolve_node(index, sense, &mut Vec::new()) {
-                    dominant = Some (
+                if let Some(weight) = self.process_node(index, sense, &mut Vec::new()) {
+                    dominant = Some(
                         if let Some(highest) = dominant {
                             if weight > highest.1 {
                                 (variant.clone(), weight)
                             } else { highest }
-
                         } else {
                             (variant.clone(), weight)
                         }
@@ -217,12 +213,12 @@ impl Agent {
         }
     }
 
-    fn resolve_node(&self, index: NodeIndex, sense: &Sense, history: &mut Vec<NodeIndex>) -> Option<f32> {
+    fn process_node(&self, index: NodeIndex, sense: &Sense, history: &mut Vec<NodeIndex>) -> Option<f32> {
         // check if the node walk is self-referential
         // internal nodes return their bias as a constant
         if history.contains(&index) {
             if let Internal(bias) = self.brain[index] {
-                if self.brain.neighbors_directed(index, Direction::Incoming).count() == 0 {
+                if self.brain.neighbors_directed(index, petgraph::Direction::Incoming).count() == 0 {
                     return Some(bias);
                 }
             }
@@ -241,7 +237,7 @@ impl Agent {
         };
 
         if history.contains(&index) {
-            return if let Node::Internal(bias) = self.brain[index] {
+            return if let Internal(bias) = self.brain[index] {
                 Some(bias)
             } else {
                 None
@@ -263,8 +259,8 @@ impl Agent {
 
         history.push(index);
 
-        match self.brain.neighbors_directed(index, Direction::Incoming).fold((0, 0f32), |(c, sum), r| {
-            if let Some(t) = self.resolve_node(r, sense, history) {
+        match self.brain.neighbors_directed(index, petgraph::Direction::Incoming).fold((0, 0f32), |(c, sum), r| {
+            if let Some(t) = self.process_node(r, sense, history) {
                 let mut t = t;
                 if let Some(b) = edge {
                     t *= if b { 1f32 } else { -1f32 };
@@ -286,19 +282,23 @@ impl Agent {
     }
 
     pub(crate) fn reproduce(&self) -> Result<Self, std::io::Error> {
-        match Self::from_string(crate::gene::Genome::mutate(self.genome.clone())) {
+        match Self::from_string(gene::Genome::mutate(self.genome.clone())) {
             Ok(agent) => Ok(agent),
             Err(e) => Err(e)
         }
     }
 
-    pub(crate) fn increment_fitness(&mut self) {
-        if self.fitness < 255 {
-            self.fitness += 1;
+    pub(crate) fn acted(&mut self, action: gene::ActionType) {
+        if self.history.len() > Self::HISTORY_SIZE {
+            self.history.pop();
         }
-    }
 
-    pub(crate) fn from_prng(complexity: usize, prng: &mut rand::rngs::StdRng) -> Result<Self, std::io::Error> {
+        self.history.insert(0, action)
+    }
+}
+
+impl Agent {
+    pub(crate) fn from_prng(complexity: usize, prng: &mut StdRng) -> Result<Self, std::io::Error> {
         let mut genome: Vec<Gene> = Vec::new();
         for _ in 0..complexity {
             genome.push(Gene::new(prng.gen_range(0..=255)));
@@ -314,25 +314,17 @@ impl Agent {
     }
 
     pub(crate) fn from_string(data: String) -> Result<Self, std::io::Error> {
-        Self::new(crate::gene::Genome::from_string(data))
-    }
-
-    pub(crate) fn get_digraph(&self) -> String {
-        format!("{}", petgraph::dot::Dot::new(&self.brain))
-    }
-
-    pub(crate) fn get_genome_string(&self) -> String {
-        crate::gene::Genome::get(self.genome.clone())
+        Self::new(gene::Genome::from_string(data))
     }
 }
 
 impl fmt::Display for Agent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Agent{}, facing {:?}", {
-            match &self.last_action {
+            match self.history.first() {
                 Some(action) => format!(" ({:?})", action),
-                None => String::from("")
+                None => String::default()
             }
-        }, self.facing)
+        }, self.direction)
     }
 }

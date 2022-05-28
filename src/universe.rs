@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::fmt;
 use std::fmt::Formatter;
 use std::hash::Hash;
@@ -6,7 +7,7 @@ use std::collections::HashMap;
 
 use rand::{Rng, thread_rng};
 
-use crate::agent::{Agent, Facing};
+use crate::r#mod::{Agent, Facing};
 use crate::gene::{ActionType, SenseType};
 
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
@@ -76,8 +77,8 @@ impl<'a> CoordinateOffset<'a> {
         }
     }
 
-    fn from_facing(facing: crate::agent::Facing, dimensions: &'a iced::Size<usize>) -> Self {
-        use crate::agent::Facing::*;
+    fn from_facing(facing: crate::r#mod::Facing, dimensions: &'a iced::Size<usize>) -> Self {
+        use crate::r#mod::Facing::*;
 
         let x: isize;
         let y: isize;
@@ -264,7 +265,7 @@ impl Universe {
             }
         }
 
-        // add new births to the HashMap of tiles
+        // add new births to the HashMap of tile
         for tile in births.drain(0..births.len()) {
             self.put(tile);
         }
@@ -289,6 +290,13 @@ impl Universe {
     }
 
     fn perform_action(&mut self, coord: Coordinate, agent: &Agent, action: ActionType) {
+        let mut action_success: Option<Coordinate> = None;
+
+        // TODO: action_success: bool & modify coord param directly
+        //       Use coord param to update agent's action history
+
+        // TODO: Add Universe::move method that moves a tile to a new coord
+
         use crate::gene::ActionType::*;
         match action {
             Move => {
@@ -323,6 +331,8 @@ impl Universe {
                     let mut a = agent.clone();
                     a.increment_fitness();
                     self.get_mut(&coord).unwrap().contents = TileContents::Agent(a);
+
+                    action_success = Some(coord);
                 }
 
                 // move
@@ -331,6 +341,8 @@ impl Universe {
                     self.put(
                         Tile::new(target, tile_contents)
                     );
+
+                    action_success = Some(target);
                 }
             },
             TurnLeft | TurnRight => {
@@ -343,10 +355,11 @@ impl Universe {
                     _ => unreachable!()
                 };
 
-                // add the modified agent back to Universe::tiles
                 self.put(
                     Tile::new(coord, TileContents::Agent(a))
                 );
+
+                action_success = Some(coord);
             },
             Kill => {
                 let target_coord = self.get(&coord).unwrap().coordinate_facing(&self.dimensions);
@@ -360,6 +373,8 @@ impl Universe {
                         self.put(
                             Tile::new(target_coord, TileContents::Food(target.fitness))
                         );
+
+                        action_success = Some(target_coord);
                     }
                 }
             },
@@ -368,9 +383,22 @@ impl Universe {
                 let target_coord = self.get(&coord).unwrap().coordinate_facing(&self.dimensions);
 
                 match target_coord {
-                    Some(target) => { self.increment_food_at(&target); },
+                    Some(target) => {
+                        if let Some(..) = self.increment_food_at(&target) {
+                            action_success = Some(coord);
+                        }
+                    },
                     None => {  }
                 }
+            }
+        }
+
+        if let Some(coord) = action_success {
+            // add the action to the agent's history
+            let contents = self.get(&coord).unwrap().contents.clone();
+            if let TileContents::Agent(mut a) = contents {
+                a.add_action_to_history(action);
+                self.get_mut(&coord).unwrap().contents = TileContents::Agent(a);
             }
         }
     }

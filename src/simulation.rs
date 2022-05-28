@@ -8,7 +8,7 @@ use iced::{Element, Point, Rectangle};
 use iced::canvas::{Cache, Cursor, Event};
 use iced::widget::canvas::event::Status;
 
-use crate::agent::Agent;
+use crate::r#mod::Agent;
 use crate::universe::{TileContents, Coordinate, Universe};
 
 struct Color(u8, u8, u8);
@@ -35,7 +35,8 @@ pub(crate) enum Message {
     DescriptionChanged(Agent),
     DescriptionPaneChanged(DescriptionPane),
     DescriptionClear,
-    DescriptionCopy
+    DescriptionCopy,
+    Step
 }
 
 impl fmt::Debug for Message {
@@ -53,13 +54,15 @@ impl fmt::Debug for Message {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DescriptionPane {
     Genome,
-    Brain
+    Brain,
+    History
 }
 
 impl DescriptionPane {
-    const ALL: [DescriptionPane; 2] = [
+    const ALL: [DescriptionPane; 3] = [
         DescriptionPane::Genome,
-        DescriptionPane::Brain
+        DescriptionPane::Brain,
+        DescriptionPane::History
     ];
 }
 
@@ -74,7 +77,8 @@ impl fmt::Display for DescriptionPane {
         write!(f, "{}",
             match self {
                 DescriptionPane::Genome => "Genome",
-                DescriptionPane::Brain => "Brain"
+                DescriptionPane::Brain => "Brain",
+                DescriptionPane::History => "Action History"
             }
         )
     }
@@ -129,9 +133,11 @@ impl iced::Sandbox for Simulation {
             },
             Message::DescriptionCopy => {
                 arboard::Clipboard::new().unwrap().set_text(self.description_text.clone()).unwrap();
+            },
+            Message::Step => {
+
             }
         }
-
     }
 
     fn view(&mut self) -> Element<'_, Self::Message> {
@@ -162,7 +168,8 @@ impl Simulation {
                 if let Some(pane) = self.selected_description_pane {
                     self.description_text = match pane {
                         DescriptionPane::Genome => agent.get_genome_string(),
-                        DescriptionPane::Brain => agent.get_digraph()
+                        DescriptionPane::Brain => agent.get_digraph(),
+                        DescriptionPane::History => agent.get_history()
                     }
                 }
             },
@@ -276,7 +283,7 @@ impl UniverseInterface {
         }
     }
 
-    fn tick(&mut self) {
+    fn step(&mut self) {
         self.universe.as_ref().borrow_mut().update();
     }
 }
@@ -375,16 +382,19 @@ impl UniverseInterface {
     fn process_keyboard_event(&mut self, event: iced::keyboard::Event) -> Option<Message> {
         use iced::keyboard::Event::*;
 
+        let mut message: Option<Message> = None;
         match event {
             KeyPressed { .. } => {
                 // TODO: Should each update step be a Message?
-                self.tick();
+                self.step();
                 self.should_redraw = true;
+
+                message = Some(Message::Step);
             },
             _ => {  }
         }
 
-        None
+        message
     }
 
     fn process_mouse_event(&self, event: iced::mouse::Event, cursor: Cursor) -> Option<Message> {
@@ -413,7 +423,7 @@ impl UniverseInterface {
                 }
             },
             CursorMoved { .. } => {
-                // update tooltip when hovering over non-empty tiles
+                // update tooltip when hovering over non-empty tile
                 message = Some(Message::TooltipClear);
                 if let Some(contents) = contents {
                     message = Some(Message::TooltipChanged(format!("{}", contents)));
