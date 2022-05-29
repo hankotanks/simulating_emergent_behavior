@@ -2,8 +2,8 @@ use std::cell::Cell;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct Coord {
-    x: usize,
-    y: usize
+    pub(crate) x: usize,
+    pub(crate) y: usize
 }
 
 impl Coord {
@@ -19,7 +19,7 @@ impl Coord {
                 self.x = if x >= 0 {
                     x as usize % dimensions.width
                 } else {
-                    dimensions.width - x as usize
+                    dimensions.width - x.abs() as usize
                 }
             },
             Y(d) => {
@@ -27,10 +27,23 @@ impl Coord {
                 self.y = if y >= 0 {
                     y as usize % dimensions.width
                 } else {
-                    dimensions.width - y as usize
+                    dimensions.width - y.abs() as usize
                 }
             }
         }
+    }
+
+    pub(crate) fn sample_offset(&self, offset: Offset, dimensions: &iced::Size<usize>) -> Coord {
+        let mut coord = self.clone();
+        coord.apply_offset(offset, dimensions);
+        coord
+    }
+
+    pub(crate) fn neighbors(&self, dimensions: &iced::Size<usize>) -> Vec<Coord> {
+        use crate::agent::Direction::*;
+        vec![Up, Down, Left, Right].drain(0..4).map(|direction| {
+            self.sample_offset(Offset::from_direction(direction), dimensions)
+        } ).collect()
     }
 }
 

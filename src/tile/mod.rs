@@ -1,19 +1,37 @@
 pub(crate) mod coord;
 
+use std::fmt;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
 
 use coord::Coord;
 
 #[derive(Clone)]
-enum Tile {
+pub(crate) enum Tile {
     Agent(crate::agent::Agent),
-    Food(u8),
+    Food(ux::u3),
     Wall
 }
 
-impl Debug for Tile {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Tile {
+    pub(crate) fn get_food_amount(&self) -> ux::u3 {
+        if let Self::Food(amount) = self {
+            return *amount;
+        }
+
+        panic!()
+    }
+
+    pub(crate) fn get_agent(&self) -> &crate::agent::Agent {
+        if let Self::Agent(agent) = self {
+            return agent;
+        }
+
+        panic!()
+    }
+}
+
+impl fmt::Debug for Tile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Tile::*;
         write!(f, "{}", match self {
             Food(amount) => format!("Food ({})", *amount),
@@ -23,12 +41,20 @@ impl Debug for Tile {
     }
 }
 
-struct TileMap {
+pub(crate) struct TileMap {
     tiles: HashMap<Coord, Tile>,
     pub(crate) dimensions: iced::Size<usize>
 }
 
 impl TileMap {
+    /// Create a new TileMap of a given Size
+    pub(crate) fn new(dimensions: iced::Size<usize>) -> Self {
+        Self {
+            tiles: HashMap::new(),
+            dimensions
+        }
+    }
+
     /// Puts a Tile at a given Coord.
     /// If a tile was previously present, returns it, otherwise None
     pub(crate) fn put(&mut self, coord: Coord, tile: Tile) -> Option<Tile> {
@@ -63,6 +89,10 @@ impl TileMap {
         self.put(coord, target);
     }
 
+    pub(crate) fn clear(&mut self, coord: Coord) -> Option<Tile> {
+        self.tiles.remove(&coord)
+    }
+
     /// Applies an Offset, one step at a time by using Offset::signum
     /// The walk is halted if it is interrupted by an occupied Tile
     /// Returns the walk's termination Coord
@@ -80,6 +110,14 @@ impl TileMap {
         coord
     }
 
+    /// Simple wrapper for TileMap::walk that accepts a direction instead of an Offset
+    pub(crate) fn walk_towards(&mut self, coord: Coord, direction: crate::agent::Direction) -> Coord {
+        self.walk(
+            coord,
+            coord::Offset::from_direction(direction)
+        )
+    }
+
     // Helper function for TileMap::walk
     fn walk_by_tiles(&mut self, coord: &mut Coord, mut offset: coord::Offset) {
         // update the Coord
@@ -93,5 +131,9 @@ impl TileMap {
 
         // recurse
         self.walk_by_tiles(coord, offset)
+    }
+
+    pub(crate) fn coords(&self) -> Vec<Coord> {
+        self.tiles.keys().cloned().collect::<Vec<Coord>>()
     }
 }

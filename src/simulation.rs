@@ -1,438 +1,326 @@
-use std::rc::Rc;
-use std::cell::RefCell;
+use rand::{Rng, thread_rng};
 
-use std::fmt;
-use std::fmt::Formatter;
+use crate::tile;
+use crate::tile::coord;
+use crate::agent;
+use crate::agent::gene;
 
-use iced::{Element, Point, Rectangle};
-use iced::canvas::{Cache, Cursor, Event};
-use iced::widget::canvas::event::Status;
-
-use crate::r#mod::Agent;
-use crate::universe::{TileContents, Coordinate, Universe};
-
-struct Color(u8, u8, u8);
-
-impl Color {
-    fn get(&self) -> iced::Color {
-        iced::Color::from([self.0 as f32 / 255f32, self.1 as f32 / 255f32, self.2 as f32 / 255f32])
-    }
-
-    fn scale_alpha(&self, scale: f32) -> iced::Color {
-        iced::Color::from_rgba8(self.0, self.1, self.2, scale)
-    }
+pub(crate) struct SimulationSettings {
+    dimensions: iced::Size<usize>,
+    agents: usize,
+    complexity: usize,
+    seed: Option<u64>
 }
 
-const WALL_COLOR: Color = Color(0x00, 0x00, 0x00);
-const FOOD_COLOR: Color = Color(0xFF, 0x64, 0x64);
-const AGENT_COLOR: Color = Color(0x64, 0x64, 0xFF);
-const EMPTY_COLOR: Color = Color(0x1A, 0x1A, 0x1A);
-
-#[derive(Clone)]
-pub(crate) enum Message {
-    TooltipChanged(String),
-    TooltipClear,
-    DescriptionChanged(Agent),
-    DescriptionPaneChanged(DescriptionPane),
-    DescriptionClear,
-    DescriptionCopy,
-    Step
-}
-
-impl fmt::Debug for Message {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use Message::*;
-        write!(f, "{}", {
-            match self {
-                DescriptionChanged(agent) => format!("Description changed to describe an {}", agent),
-                _ => format!("{:?}", self)
-            }
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DescriptionPane {
-    Genome,
-    Brain,
-    History
-}
-
-impl DescriptionPane {
-    const ALL: [DescriptionPane; 3] = [
-        DescriptionPane::Genome,
-        DescriptionPane::Brain,
-        DescriptionPane::History
-    ];
-}
-
-impl Default for DescriptionPane {
+impl Default for SimulationSettings {
     fn default() -> Self {
-        DescriptionPane::Genome
-    }
-}
-
-impl fmt::Display for DescriptionPane {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}",
-            match self {
-                DescriptionPane::Genome => "Genome",
-                DescriptionPane::Brain => "Brain",
-                DescriptionPane::History => "Action History"
-            }
-        )
-    }
-}
-
-// the size of the padding between widgets, used to calculate the cell under the user's cursor
-const PADDING: u16 = 10;
-
-#[derive(Default)]
-pub(crate) struct Simulation {
-    universe: Rc<RefCell<Universe>>,
-    state_pick_list: iced::pick_list::State<DescriptionPane>,
-    state_scrollable: iced::scrollable::State,
-    state_copy_button: iced::button::State,
-    tooltip: String,
-    description_target: Option<Agent>,
-    description_text: String,
-    selected_description_pane: Option<DescriptionPane>
-}
-
-impl iced::Sandbox for Simulation {
-    type Message = Message;
-
-    fn new() -> Self {
-        // TODO: Disable copy button when no agent is selected
         Self {
-            universe: Rc::new(RefCell::new(Universe::default())),
-            state_scrollable: iced::scrollable::State::default(),
-            state_pick_list: iced::pick_list::State::default(),
-            state_copy_button: iced::button::State::default(),
-            tooltip: String::default(),
-            description_target: Option::default(),
-            description_text: String::default(),
-            selected_description_pane: Some(DescriptionPane::default()),
+            dimensions: iced::Size::new(32, 32),
+            agents: 32,
+            complexity: 64,
+            seed: None
         }
-    }
-
-    fn title(&self) -> String {
-        String::from("Simulating Emergent Behavior")
-    }
-
-    fn update(&mut self, message: Self::Message) {
-        match message {
-            Message::TooltipChanged(tooltip) => self.update_tooltip(Some(tooltip)),
-            Message::TooltipClear => self.update_tooltip(None),
-            Message::DescriptionChanged(agent) => self.update_description(Some(agent)),
-            Message::DescriptionClear => self.update_description(None),
-            Message::DescriptionPaneChanged(pane) => {
-                self.selected_description_pane = Some(pane);
-
-                self.update_description(self.description_target.clone());
-            },
-            Message::DescriptionCopy => {
-                arboard::Clipboard::new().unwrap().set_text(self.description_text.clone()).unwrap();
-            },
-            Message::Step => {
-
-            }
-        }
-    }
-
-    fn view(&mut self) -> Element<'_, Self::Message> {
-        use iced::Length;
-
-        iced::Container::new(self.widgets())
-            .height(Length::Fill)
-            .width(Length::Fill)
-            .into()
     }
 }
+
+pub(crate) struct Simulation(tile::TileMap);
 
 impl Simulation {
-    fn update_tooltip(&mut self, tooltip: Option<String>) {
-        self.tooltip = match tooltip {
-            Some(text) => text,
-            None => String::new()
-        }
-    }
-
-    fn update_description(&mut self, agent: Option<Agent>) {
-        // set the new description target
-        self.description_target = agent;
-
-        // update description text to match new agent
-        match &self.description_target {
-            Some(agent) => {
-                if let Some(pane) = self.selected_description_pane {
-                    self.description_text = match pane {
-                        DescriptionPane::Genome => agent.get_genome_string(),
-                        DescriptionPane::Brain => agent.get_digraph(),
-                        DescriptionPane::History => agent.get_history()
-                    }
-                }
-            },
-            None => self.description_text.clear()
-        }
-
-        // move to the top of the scrollable
-        self.state_scrollable.snap_to(0f32);
-    }
-
-    fn widgets(&mut self) -> iced::Container<Message> {
-        use iced::Length;
-
-        // the dropdown where different DescriptionPanes can be selected
-        let picker = iced::PickList::new(
-            &mut self.state_pick_list,
-            &DescriptionPane::ALL[..],
-            self.selected_description_pane,
-            Message::DescriptionPaneChanged)
-            .width(Length::Fill);
-        let picker = iced::Container::new(picker)
-            .width(Length::Fill)
-            .padding(iced::Padding::new(PADDING));
-
-        // a button used to copy the description
-        let copy = iced::Button::new(
-            &mut self.state_copy_button,
-            iced::Text::new("Copy"))
-            .width(Length::Fill)
-            .on_press(Message::DescriptionCopy);
-        let copy = iced::Container::new(copy)
-            .width(Length::Fill)
-            .padding(iced::Padding {
-                top: PADDING,
-                right: 0,
-                bottom: 0,
-                left: 0 } );
-
-        // the area where the Agent's Genome and Digraph are displayed
-        let desc = iced::Text::new(&self.description_text)
-            .width(Length::FillPortion(1u16))
-            .height(Length::Shrink);
-        let desc = iced::Scrollable::new(&mut self.state_scrollable)
-            .push(desc)
-            .push(copy)
-            .width(Length::Fill)
-            .height(Length::Shrink)
-            .scroller_width(0)
-            .scrollbar_width(0)
-            .padding(iced::Padding {
-                top: 0,
-                right: PADDING,
-                bottom: PADDING,
-                left: PADDING
-            } );
-
-        // put the inspection panel together
-        let inspector = iced::Column::new()
-            .push(picker)
-            .push(desc)
-            .width(Length::FillPortion(1u16))
-            .height(Length::Fill);
-
-        // start building the universe interface
-        let ui = UniverseInterface::new(Rc::clone(&self.universe));
-        let ui = iced::Canvas::new(ui)
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-        // wrap the interface in a container so it can be given a border
-        let ui = iced::Container::new(ui)
-            .width(Length::FillPortion(2u16))
-            .height(Length::Fill)
-            .padding(iced::Padding {
-                top: PADDING,
-                right: 0,
-                bottom: PADDING,
-                left: PADDING
-            } );
-
-        // add the tooltip element
-        let ui: iced::Tooltip<Message> = iced::Tooltip::new(ui, self.tooltip.as_str(), iced::tooltip::Position::FollowCursor);
-
-        let content = iced::Row::new()
-            .push(ui)
-            .push(inspector)
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-        // wrap it in a container and return
-        iced::Container::new(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-    }
-}
-
-struct UniverseInterface {
-    universe: Rc<RefCell<Universe>>,
-    cache: Cache,
-    bounds: Option<Rectangle>,
-    should_redraw: bool
-}
-
-impl UniverseInterface {
-    fn new(universe: Rc<RefCell<Universe>>) -> Self {
-        Self {
-            universe,
-            cache: Cache::default(),
-            bounds: None,
-            should_redraw: false
-        }
-    }
-
-    fn step(&mut self) {
-        self.universe.as_ref().borrow_mut().update();
-    }
-}
-
-impl iced::canvas::Program<Message> for UniverseInterface {
-    fn update(&mut self, event: Event, bounds: Rectangle, cursor: Cursor) -> (Status, Option<Message>) {
-        use iced::canvas::Event::*;
-
-        // redraw the scene if needed
-        if self.should_redraw {
-            self.cache.clear();
-            self.should_redraw = false;
-        }
-
-        // update the bounds (this field is used by helper functions)
-        self.bounds = Some(bounds);
-
-        // get the message for this frame
-        let mut message: Option<Message> = None;
-        match event {
-            Mouse(mouse_event) => {
-                // ensure that only mouse events inside the canvas are processed
-                if let Some(position) = cursor.position() {
-                    if bounds.contains(position) {
-                        message = self.process_mouse_event(mouse_event, cursor)
-                    }
-                }
-
-            }, Keyboard(keyboard_event) => {
-                message = self.process_keyboard_event(keyboard_event);
-            }
-        }
-
-        (Status::Ignored, message)
-
-    }
-
-    fn draw(&self, bounds: Rectangle, _cursor: Cursor) -> Vec<iced::canvas::Geometry> {
-        let tiles = self.cache.draw(bounds.size(), |frame| {
-            // draw the background of the canvas
-            frame.fill(
-                &iced::canvas::Path::rectangle(Point::ORIGIN, frame.size()),
-                EMPTY_COLOR.get());
-
-            // maintain a mutable reference to the universe
-            let u = self.universe.as_ref().borrow();
-
-            // calculate the dimensions of each tile
-            let size = (bounds.width / u.dimensions.width as f32,
-                        bounds.height / u.dimensions.height as f32);
-
-            // draw each tile
-            for tile in u.tiles() {
-                let path = iced::canvas::Path::circle(
-                    Point::new(tile.coord.x as f32 * size.0 + size.0 / 2f32, tile.coord.y as f32 * size.1 + size.1 / 2f32),
-                    (size.0 + size.1) / 4f32);
-
-                frame.fill(
-                    &path,
-                    iced::canvas::Fill::from(
-                        match &tile.contents { // get the matching tile color
-                            TileContents::Food(amount) => FOOD_COLOR.scale_alpha(*amount as f32 / 10f32),
-                            TileContents::Agent(..) => AGENT_COLOR.get(),
-                            TileContents::Wall => WALL_COLOR.get()
-                        }
-                    )
-                );
-            }
-        });
-
-        vec![tiles]
-    }
-}
-
-// Helper methods
-impl UniverseInterface {
-    // Note that this returns a copy of the tile's contents
-    fn contents_at(&self, point: Point) -> Option<TileContents> {
-        let u = self.universe.as_ref().borrow();
-
-        // get the coordinates of the tile
-        let coord = Coordinate::new(
-            ((point.x - PADDING as f32) / (self.bounds.unwrap().width / u.dimensions.width as f32)) as usize,
-            ((point.y - PADDING as f32) / (self.bounds.unwrap().height / u.dimensions.height as f32)) as usize
-        );
-
-        let tile = u.get(&coord);
-        match tile {
-            Some(t) => {
-                Some(t.contents.clone())
-            },
-            None => None
-        }
-    }
-
-    fn process_keyboard_event(&mut self, event: iced::keyboard::Event) -> Option<Message> {
-        use iced::keyboard::Event::*;
-
-        let mut message: Option<Message> = None;
-        match event {
-            KeyPressed { .. } => {
-                // TODO: Should each update step be a Message?
-                self.step();
-                self.should_redraw = true;
-
-                message = Some(Message::Step);
-            },
-            _ => {  }
-        }
-
-        message
-    }
-
-    fn process_mouse_event(&self, event: iced::mouse::Event, cursor: Cursor) -> Option<Message> {
-        use iced::mouse::Event::*;
-
-        // get the contents of the tile under the cursor
-        let contents = if let Some(position) = cursor.position() {
-            if let Some(contents) = self.contents_at(position) {
-                Some(contents)
-            } else {
-                None
-            }
-        } else {
-            None
+    pub(crate) fn new(settings: SimulationSettings) -> Self {
+        let mut prng: rand::rngs::StdRng = match settings.seed {
+            Some(s) => rand::SeedableRng::seed_from_u64(s),
+            None => rand::SeedableRng::from_entropy()
         };
 
-        let mut message: Option<Message> = None;
-        match event {
-            ButtonPressed(..) => {
-                // change the inspection panel when a tile is clicked on
-                message = Some(Message::DescriptionClear);
-                if let Some(contents) = contents {
-                    if let TileContents::Agent(agent) = contents {
-                        message = Some(Message::DescriptionChanged(agent));
+        Self {
+            0: {
+                let mut t = tile::TileMap::new(settings.dimensions);
+
+                for _ in 0..settings.agents {
+                    let agent = 'agent: loop {
+                        match agent::Agent::from_prng(settings.complexity, &mut prng) {
+                            Ok(agent) => break 'agent agent,
+                            Err(..) => continue 'agent
+                        }
+                    };
+
+                    'occupied: loop {
+                        let coord = coord::Coord::new(
+                            prng.gen_range(0..settings.dimensions.width),
+                            prng.gen_range(0..settings.dimensions.height)
+                        );
+
+                        if !t.exists(coord) {
+                            t.put(coord, tile::Tile::Agent(agent));
+                            break 'occupied;
+                        }
                     }
                 }
-            },
-            CursorMoved { .. } => {
-                // update tooltip when hovering over non-empty tile
-                message = Some(Message::TooltipClear);
-                if let Some(contents) = contents {
-                    message = Some(Message::TooltipChanged(format!("{}", contents)));
+
+                t.put(coord::Coord::new(2, 2), tile::Tile::Food(ux::u3::MAX));
+
+                t
+            }
+        }
+    }
+
+    pub(crate) fn step(&mut self) {
+        // food diffusion
+        'topple: loop {
+            for coord in self.food() {
+                if self.should_topple(coord) {
+                    self.topple(coord);
                 }
-            },
-            _ => {}
+            }
+
+            let mut invalid = false;
+            self.food().drain(0..).for_each(|coord| {
+                if self.should_topple(coord) {
+                    invalid = true;
+                }
+            } );
+
+            if !invalid {
+                break 'topple;
+            }
         }
 
+        // handle births
+        for coord in self.agents() {
+            if thread_rng().gen_range(u8::from(ux::u5::MIN)..u8::from(ux::u5::MAX))
+                < u8::from(self.get(coord).get_agent().fitness) {
+                let child_coord = coord.sample_offset(
+                    coord::Offset::from_direction(
+                        self.get(coord).get_agent().direction.opposite()),
+                    &self.0.dimensions
+                );
 
-        message
+                if !self.exists(child_coord) {
+                    self.0.update(coord, |tile| {
+                        let mut parent = tile.get_agent().clone();
+                        parent.fitness = ux::u5::MIN;
+
+                        tile::Tile::Agent(parent)
+                    } );
+
+                    if let Ok(child) = self.get(coord).get_agent().reproduce() {
+                        self.0.put(child_coord, tile::Tile::Agent(child));
+                    }
+                }
+
+            }
+        }
+
+        // agents perform actions
+        for coord in self.agents() {
+            if self.exists(coord) {
+                if let tile::Tile::Agent(agent) = self.get(coord) {
+                    if let Some(action) = agent.process(&Sense::new()) { // TODO: Provide Sense struct with required parameters
+                        self.act(coord, action);
+                    }
+
+                }
+            }
+        }
+
+        // food randomly decays
+        for coord in self.food() {
+            if thread_rng().gen_range(0..u8::from(ux::u3::MAX)) ==
+                u8::from(self.0.get(coord).get_food_amount()) {
+                self.remove_food_at(coord);
+            }
+        }
+
+    }
+
+    fn act(&mut self, coord: coord::Coord, action: gene::ActionType) {
+        let direction = self.get(coord).get_agent().direction;
+        let facing = coord.sample_offset(
+            coord::Offset::from_direction(direction),
+            &self.0.dimensions
+        );
+
+        use gene::ActionType::*;
+        match action {
+            Move => {
+                if self.exists(facing) {
+                    if let tile::Tile::Food(..) = self.get(facing) {
+                        self.remove_food_at(facing);
+                        self.add_fitness_at(coord);
+                    }
+                } else {
+                    self.0.walk_towards(coord, direction);
+                }
+            },
+            TurnLeft | TurnRight => {
+                self.0.update(coord, |tile| {
+                    let mut agent = tile.get_agent().clone();
+
+                    agent.direction = match action {
+                        TurnLeft => agent.direction.left(),
+                        TurnRight => agent.direction.right(),
+                        _ => unreachable!()
+                    };
+
+                    tile::Tile::Agent(agent)
+                } );
+            },
+            Kill => {
+                // TODO: Implement Kill
+            },
+            ProduceFood => {
+                self.add_food_at(facing);
+            }
+        }
+    }
+
+    // panics if the Tile is not Food or if the Tile does not exist
+    fn should_topple(&self, coord: coord::Coord) -> bool {
+        if self.get(coord).get_food_amount() > ux::u3::new(4) {
+            return true;
+        }
+
+        false
+    }
+
+    fn topple(&mut self, coord: coord::Coord) {
+        let mut count = 0;
+        for neighbor in coord.neighbors(&self.0.dimensions) {
+            if self.add_food_at(neighbor) {
+                count += 1;
+            }
+        }
+
+        for _ in 0..count {
+            if !self.remove_food_at(coord) {
+                break;
+            }
+        }
+    }
+
+    // assumes that the Tile is an Agent
+    fn add_fitness_at(&mut self, coord: coord::Coord) -> bool {
+        let fitness = self.get(coord).get_agent().fitness;
+
+        if fitness < ux::u5::MAX {
+            self.0.update(coord, |tile| {
+                let mut agent = tile.get_agent().clone();
+                agent.fitness = fitness + ux::u5::new(1);
+
+                tile::Tile::Agent(agent)
+
+            } );
+
+            return true;
+        }
+
+        false
+    }
+
+    fn add_food_at(&mut self, coord: coord::Coord) -> bool {
+        if self.exists(coord) {
+            if let tile::Tile::Food(amount) = self.get(coord).clone() {
+                if amount < ux::u3::MAX {
+                    self.0.update(coord, |_| {
+                        tile::Tile::Food(amount + ux::u3::new(1))
+                    } );
+
+                    return true;
+                }
+            }
+
+        } else {
+            self.0.put(coord, tile::Tile::Food(ux::u3::new(1)));
+
+            return true;
+        }
+
+        false
+    }
+
+    fn remove_food_at(&mut self, coord: coord::Coord) -> bool {
+        if self.exists(coord) {
+            if let tile::Tile::Food(amount) = self.get(coord).clone() {
+                if amount == ux::u3::new(1) {
+                    self.0.clear(coord);
+                } else {
+                    self.0.update(coord, |_| {
+                        tile::Tile::Food(amount - ux::u3::new(1))
+                    } );
+                }
+
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+impl Default for Simulation {
+    fn default() -> Self {
+        Self::new(SimulationSettings::default())
+    }
+}
+
+// helper methods
+impl Simulation {
+    pub(crate) fn get(&self, coord: coord::Coord) -> &tile::Tile {
+        self.0.get(coord)
+    }
+
+    pub(crate) fn exists(&self, coord: coord::Coord) -> bool {
+        self.0.exists(coord)
+    }
+
+    pub(crate) fn size(&self) -> iced::Size<usize> {
+        self.0.dimensions
+    }
+
+    pub(crate) fn coords(&self) -> Vec<coord::Coord> {
+        self.0.coords()
+    }
+
+    pub(crate) fn food(&self) -> Vec<coord::Coord> {
+        let mut coords = self.coords();
+        coords.drain(0..coords.len()).filter(|coord| {
+            if let tile::Tile::Food(..) = self.get(coord.clone()) {
+                true
+            } else {
+                false
+            }
+        } ).collect::<Vec<coord::Coord>>()
+    }
+
+    pub(crate) fn agents(&self) -> Vec<coord::Coord> {
+        let mut coords = self.coords();
+        let mut coords = coords.drain(0..coords.len()).filter(|coord| {
+            if let tile::Tile::Agent(..) = self.get(coord.clone()) {
+                true
+            } else {
+                false
+            }
+        } ).collect::<Vec<coord::Coord>>();
+
+        coords.sort_by(|first, second| {
+            let first_fitness = u8::from(self.get(*first).get_agent().fitness);
+            let second_fitness = u8::from(self.get(*second).get_agent().fitness);
+
+            first_fitness.cmp(&second_fitness)
+        } );
+
+        coords
+    }
+}
+
+pub(crate) struct Sense;
+
+impl Sense {
+    pub(crate) fn new() -> Self {
+        Self {  }
+    }
+
+    pub(crate) fn get(&self, _sense: &gene::SenseType) -> f32 {
+        thread_rng().gen_range(0..100) as f32 / 100f32
     }
 }

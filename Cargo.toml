@@ -12,3 +12,4 @@ strum_macros = "0.24"
 petgraph = "0.6.0"
 iced = { features = ["canvas"] }
 arboard = "2.1.1"
+ux = "0.1.0"

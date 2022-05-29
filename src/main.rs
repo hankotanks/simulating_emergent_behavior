@@ -1,24 +1,11 @@
 mod agent;
-mod universe;
-mod simulation;
 mod tile;
+mod simulation;
+mod interface;
 
-use iced::Application;
-use iced::window;
+use iced::Sandbox;
 
 pub fn main() -> iced::Result {
-    tile::test();
-    /*
-    simulation::Simulation::run(iced::Settings {
-        antialiasing: true,
-        window: window::Settings {
-            position: window::Position::Centered,
-            ..window::Settings::default()
-        },
-        ..iced::Settings::default()
-    })
+    interface::Interface::run(iced::Settings::default())
 
-     */
-
-    iced::Result::Ok(())
 }

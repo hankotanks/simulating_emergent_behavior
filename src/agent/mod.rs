@@ -1,4 +1,4 @@
-mod gene;
+pub(crate) mod gene;
 
 use std::fmt;
 use std::fmt::Formatter;
@@ -12,13 +12,19 @@ use rand::rngs::StdRng;
 use gene::Gene;
 use gene::GeneParse;
 
-use crate::universe::Sense;
+use crate::simulation::Sense;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Node {
     Sense(gene::SenseType),
     Action(gene::ActionType),
     Internal(f32)
+}
+
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -72,9 +78,9 @@ impl Direction {
 
 #[derive(Clone)]
 pub(crate) struct Agent {
-    brain: graph::Graph<Node, bool>,
-    genome: Vec<Gene>,
-    pub(crate) fitness: u8,
+    pub(crate) brain: graph::Graph<Node, bool>,
+    pub(crate) genome: Vec<Gene>,
+    pub(crate) fitness: ux::u5,
     pub(crate) direction: Direction,
     pub(crate) history: Vec<gene::ActionType>
 }
@@ -142,14 +148,14 @@ impl Agent {
         let mut agent = Self {
             brain,
             genome,
-            fitness: 0u8,
+            fitness: ux::u5::MIN,
             direction: Direction::default(),
             history: Vec::new()
         };
 
         let mut retain: Vec<NodeIndex> = Vec::new();
-        for index in brain.node_indices() {
-            if let Node::Action(..) = brain[index] {
+        for index in agent.brain.node_indices() {
+            if let Node::Action(..) = agent.brain[index] {
                 agent.prune(index, &mut retain);
             }
         }

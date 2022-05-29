@@ -36,7 +36,7 @@ impl Gene {
     }
 
     pub(crate) fn mutate(&mut self) {
-        self.0 ^= 1u8.rotate_left(rand::thread_rng().gen_range(0..8));
+        self.0 ^= 1u8.rotate_left(thread_rng().gen_range(0..8));
     }
 
     pub(crate) fn from_string(data: &str) -> Result<Self, std::io::Error> {
