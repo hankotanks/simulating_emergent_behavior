@@ -84,7 +84,7 @@ impl Simulation {
         // handle deaths before births
         for coord in self.agents() {
             if self.should_die(coord) {
-                self.0.clear(coord);
+                self.kill(coord);
             }
         }
 
@@ -178,13 +178,7 @@ impl Simulation {
             Kill => {
                 if self.exists(facing) {
                     if let tile::Tile::Agent(..) = self.get(facing) {
-                        let amount = self.get(facing).get_agent().fitness;
-                        self.0.clear(facing);
-
-                        for _ in 0..u8::from(amount) {
-                            self.add_food_at(facing);
-                        }
-
+                        self.kill(facing);
                     } else {
                         successful = false;
                     }
@@ -202,6 +196,21 @@ impl Simulation {
         self.get(coord).update_agent(|mut agent| {
             agent.acted(action, successful);
         } );
+    }
+
+    fn kill(&mut self, coord: coord::Coord) {
+        if self.0.contains_agent(coord) {
+            let amount = self.get(coord).get_agent().fitness;
+            self.0.clear(coord);
+
+            for _ in 0..u8::from(amount) {
+                self.add_food_at(coord);
+            }
+
+            return;
+        }
+
+        panic!()
     }
 
     // assumes Tile is an Agent
