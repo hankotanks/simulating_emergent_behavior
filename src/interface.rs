@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use std::rc::Rc;
+use std::cell::RefCell;
 use std::fmt;
 
 use iced::canvas;
@@ -11,8 +11,7 @@ use crate::simulation::Simulation;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
-    InspectorTarget(coord::Coord),
-    InspectorClear,
+    InspectorTarget(crate::agent::Agent),
     InspectorPaneChange(InspectorPane),
     InspectorCopy,
     Step,
@@ -20,7 +19,7 @@ pub(crate) enum Message {
 
 pub(crate) struct Interface {
     simulation: Rc<RefCell<Simulation>>,
-    target: Option<coord::Coord>,
+    target: Option<crate::agent::Agent>,
     selection: Option<InspectorPane>,
     selection_text: String,
     state_pick_list: iced::pick_list::State<InspectorPane>,
@@ -56,8 +55,7 @@ impl iced::Sandbox for Interface {
     fn update(&mut self, message: Self::Message) {
         use Message::*;
         match message {
-            InspectorTarget(coord) => self.set_target(coord),
-            InspectorClear => self.selection_text = String::default(),
+            InspectorTarget(agent) => self.set_target(agent),
             InspectorPaneChange(pane) => self.set_selection(pane),
             InspectorCopy => arboard::Clipboard::new().unwrap().set_text(self.selection_text.clone()).unwrap(),
             Step => self.simulation.borrow_mut().step()
@@ -105,23 +103,23 @@ impl Interface {
                         iced::Text::new(&self.selection_text)
                             .width(Length::Fill)
                             .height(Length::Shrink))
+                    .push(
+                        iced::Button::new(
+                            &mut self.state_copy,
+                            iced::Text::new("Copy"))
+                            .width(Length::Fill)
+                            .on_press(InspectorCopy))
                     .width(Length::Fill)
                     .height(Length::Shrink)
-                    .padding(
-                        iced::Padding::from([Self::PADDING, 0])))
-            .push(
-                iced::Button::new(
-                    &mut self.state_copy,
-                    iced::Text::new("Copy"))
-                    .width(Length::Fill)
-                    .on_press(InspectorCopy))
+                    .spacing(Self::PADDING))
             .width(Length::FillPortion(1u16))
             .height(Length::Shrink)
+            .spacing(Self::PADDING)
             .into()
     }
 
-    fn set_target(&mut self, coord: coord::Coord) {
-        self.target = Some(coord);
+    fn set_target(&mut self, agent: crate::agent::Agent) {
+        self.target = Some(agent);
 
         self.update_selection_text();
     }
@@ -139,11 +137,17 @@ impl Interface {
             return;
         }
 
-        if let tile::Tile::Agent(agent) = self.simulation.borrow().get(self.target.unwrap()) {
-            self.selection_text = match self.selection.unwrap() {
-                Genome => crate::agent::gene::Genome::get(agent.genome.clone()),
-                Brain => format!("{}", petgraph::dot::Dot::new(&agent.brain)),
-                History => String::default() // TODO: Actually display history
+        // TODO: Messy! Clone should be avoided...
+        let agent = self.target.clone().unwrap();
+        self.selection_text = match self.selection.unwrap() {
+            Genome => crate::agent::gene::Genome::get(agent.genome),
+            Brain => format!("{}", petgraph::dot::Dot::new(&agent.brain)),
+            History => {
+                agent.history.iter().fold(String::new(), |output, action| {
+                    output + &*format!("{:?}", action) + "\n"
+                } )
+                    .trim_end()
+                    .to_string()
             }
         }
     }
@@ -223,10 +227,10 @@ impl canvas::Program<Message> for InterfaceCanvas {
         let mut message: Option<Message> = None;
         match event {
             Mouse(ButtonPressed(..)) => {
-                if let Some(point) = cursor.position() {
-                    message = match self.coord_at(point, bounds) {
-                        Some(coord) => Some(InspectorTarget(coord)),
-                        None => Some(InspectorClear)
+                if let Some(coord) = self.coord_at(cursor, bounds) {
+                    if self.simulation.borrow().exists(coord) {
+                        let agent = self.simulation.borrow().get(coord).get_agent().clone();
+                        message = Some(InspectorTarget(agent))
                     }
                 }
             },
@@ -280,9 +284,17 @@ impl canvas::Program<Message> for InterfaceCanvas {
 impl InterfaceCanvas {
     // Returns None if there isn't a Tile at the given Point
     // Otherwise, returns the Coord of the Tile
-    fn coord_at(&self, point: iced::Point, bounds: iced::Rectangle) -> Option<coord::Coord> {
+    fn coord_at(&self, cursor: canvas::Cursor, bounds: iced::Rectangle) -> Option<coord::Coord> {
+        // ensure the cursor is in the simulation window and above the Canvas
+        cursor.position()?;
+        if !bounds.contains(cursor.position().unwrap()) {
+            return None;
+        }
+
+
         let size = self.simulation.borrow().size();
 
+        let point = cursor.position().unwrap();
         let coord = coord::Coord::new(
             ((point.x - Self::PADDING as f32) / (bounds.width / size.width as f32)) as usize,
             ((point.y - Self::PADDING as f32) / (bounds.height / size.height as f32)) as usize,

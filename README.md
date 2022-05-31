@@ -20,19 +20,32 @@ The simulation runs generation by generation according to a simple set of [rules
 
 ***
 
+#### Creatures
+
+Creatures have 2 principal attributes that effect their reproduction and death cycles.
+
+*Nutrition:* 
+Refills after eating. 
+Consumed gradually by actions. 
+When no nutrition remains, the creature is starving, and has a chance to die. 
+This chance is proportional to the creature's fitness...
+
+*Fitness:* 
+Increases through eating or producing food. 
+Affects chance of reproduction. 
+Fitness is reset after a creature reproduces.
+
 #### Simulation Rules
 
-1. Every turn, each creature takes an action. The most fit creatures act first.
-2. Fitness determines chance of reproduction.
-3. Offspring have a chance to undergo mutations, differentiating them from their parent.
-4. Creatures cannot move through walls.
-5. When a creature is killed, it becomes food.
-6. Eating increases fitness, failure to eat over time leads to death.
+The simulation space is a 2D grid of cells, each of which can contain either an agent, food, or a wall.
 
-The simulation space is a 2D grid of cells, each of which can be occupied by one of three things:
-- A creature
-- Food, which diffuses to adjacent spaces over time (according to an [Abelian sandpile model](https://en.wikipedia.org/wiki/Abelian_sandpile_model))
-- An impassable wall
+1. Creatures cannot move through walls
+2. Food diffuses to adjacent space over time (resembles the [Abelian sandpile model](https://en.wikipedia.org/wiki/Abelian_sandpile_model))
+3. Food gradually decays over time
+4. Every turn, each creature takes an action
+5. Creatures with the highest fitness act first
+6. Offspring undergo mutations, differentiating them from their parent
+7. When a creature dies, it becomes food, proportional to its fitness
 
 #### Genes
 

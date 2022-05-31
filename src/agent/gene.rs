@@ -100,11 +100,8 @@ impl Genome {
 
     pub(crate) fn from_string(data: String) -> Vec<Gene> {
         let mut genome: Vec<Gene> = Vec::new();
-        for g in data.split(" ") {
-            match Gene::from_string(g) {
-                Ok(gene) => genome.push(gene),
-                Err(..) => {  }
-            }
+        for g in data.split(' ') {
+            if let Ok(gene) = Gene::from_string(g) { genome.push(gene) }
         }
 
         genome

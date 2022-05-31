@@ -38,7 +38,7 @@ pub(crate) enum Direction {
 impl Default for Direction {
     fn default() -> Self {
         use Direction::*;
-        vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)].clone()
+        vec![Up, Down, Left, Right][thread_rng().gen_range(0..3)]
     }
 }
 
@@ -82,7 +82,8 @@ pub(crate) struct Agent {
     pub(crate) genome: Vec<Gene>,
     pub(crate) fitness: ux::u5,
     pub(crate) direction: Direction,
-    pub(crate) history: Vec<gene::ActionType>
+    pub(crate) history: Vec<gene::ActionType>,
+    pub(crate) nutrition: ux::u5
 }
 
 impl Agent {
@@ -150,7 +151,8 @@ impl Agent {
             genome,
             fitness: ux::u5::MIN,
             direction: Direction::default(),
-            history: Vec::new()
+            history: Vec::new(),
+            nutrition: ux::u5::MAX,
         };
 
         let mut retain: Vec<NodeIndex> = Vec::new();
@@ -164,11 +166,7 @@ impl Agent {
             retain.contains(&n) && {
                 match &brain[n] {
                     Node::Action(..) => {
-                        if brain.neighbors_directed(n, petgraph::Direction::Incoming).count() == 0 {
-                            false
-                        } else {
-                            true
-                        }
+                        brain.neighbors_directed(n, petgraph::Direction::Incoming).count() != 0
                     },
                     _ => true
                 }
@@ -183,14 +181,9 @@ impl Agent {
     fn prune(&mut self, index: NodeIndex, processed: &mut Vec<NodeIndex>) {
         processed.push(index);
         let mut walk = self.brain.neighbors_directed(index, petgraph::Direction::Incoming).detach();
-        loop {
-            match walk.next_node(&self.brain) {
-                Some(t) => {
-                    if !processed.contains(&t) {
-                        self.prune(t, processed);
-                    }
-                },
-                None => break
+        while let Some(t) = walk.next_node(&self.brain) {
+            if !processed.contains(&t) {
+                self.prune(t, processed);
             }
         }
     }
@@ -203,20 +196,17 @@ impl Agent {
                     dominant = Some(
                         if let Some(highest) = dominant {
                             if weight > highest.1 {
-                                (variant.clone(), weight)
+                                (*variant, weight)
                             } else { highest }
                         } else {
-                            (variant.clone(), weight)
+                            (*variant, weight)
                         }
                     )
                 }
             }
         }
 
-        match dominant {
-            Some(t) => Some(t.0),
-            None => None
-        }
+        dominant.map(|t| t.0)
     }
 
     fn process_node(&self, index: NodeIndex, sense: &Sense, history: &mut Vec<NodeIndex>) -> Option<f32> {
@@ -253,12 +243,7 @@ impl Agent {
         // get the corresponding edge between the `index` node and its parent
         let edge = match history.last() {
             Some(&t) => {
-                match self.brain.find_edge(index, t) {
-                    Some(k) => {
-                        Some(self.brain[k])
-                    },
-                    None => None
-                }
+                self.brain.find_edge(index, t).map(|k| self.brain[k])
             },
             None => None
         };
@@ -294,12 +279,33 @@ impl Agent {
         }
     }
 
-    pub(crate) fn acted(&mut self, action: gene::ActionType) {
+    pub(crate) fn acted(&mut self, action: gene::ActionType, successful: bool) {
+        if self.nutrition > ux::u5::MIN {
+            self.nutrition = self.nutrition - ux::u5::new(1);
+        }
+
+        // Producing food sates the creature that made it
+        if matches!(action, gene::ActionType::ProduceFood) && successful {
+            self.sate();
+        }
+
         if self.history.len() > Self::HISTORY_SIZE {
             self.history.pop();
         }
 
         self.history.insert(0, action)
+    }
+
+    pub(crate) fn sate(&mut self) {
+        self.nutrition = ux::u5::MAX;
+
+        if self.fitness < ux::u5::MAX {
+            self.fitness = self.fitness + ux::u5::new(1);
+        }
+    }
+
+    pub(crate) fn starving(&self) -> bool {
+        self.nutrition == ux::u5::MIN
     }
 }
 
@@ -324,7 +330,7 @@ impl Agent {
     }
 }
 
-impl fmt::Display for Agent {
+impl fmt::Debug for Agent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Agent{}, facing {:?}", {
             match self.history.first() {
@@ -332,5 +338,11 @@ impl fmt::Display for Agent {
                 None => String::default()
             }
         }, self.direction)
+    }
+}
+
+impl fmt::Display for Agent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

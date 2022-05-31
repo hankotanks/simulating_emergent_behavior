@@ -15,7 +15,7 @@ pub(crate) struct SimulationSettings {
 impl Default for SimulationSettings {
     fn default() -> Self {
         Self {
-            dimensions: iced::Size::new(32, 32),
+            dimensions: iced::Size::new(64, 64),
             agents: 32,
             complexity: 64,
             seed: None
@@ -32,8 +32,7 @@ impl Simulation {
             None => rand::SeedableRng::from_entropy()
         };
 
-        Self {
-            0: {
+        Self( {
                 let mut t = tile::TileMap::new(settings.dimensions);
 
                 for _ in 0..settings.agents {
@@ -57,11 +56,8 @@ impl Simulation {
                     }
                 }
 
-                t.put(coord::Coord::new(2, 2), tile::Tile::Food(ux::u3::MAX));
-
                 t
-            }
-        }
+            } )
     }
 
     pub(crate) fn step(&mut self) {
@@ -85,9 +81,16 @@ impl Simulation {
             }
         }
 
+        // handle deaths before births
+        for coord in self.agents() {
+            if self.should_die(coord) {
+                self.0.clear(coord);
+            }
+        }
+
         // handle births
         for coord in self.agents() {
-            if thread_rng().gen_range(u8::from(ux::u5::MIN)..u8::from(ux::u5::MAX))
+            if thread_rng().gen_range(0..u8::from(ux::u5::MAX))
                 < u8::from(self.get(coord).get_agent().fitness) {
                 let child_coord = coord.sample_offset(
                     coord::Offset::from_direction(
@@ -133,12 +136,14 @@ impl Simulation {
 
     }
 
-    fn act(&mut self, coord: coord::Coord, action: gene::ActionType) {
+    fn act(&mut self, mut coord: coord::Coord, action: gene::ActionType) {
         let direction = self.get(coord).get_agent().direction;
         let facing = coord.sample_offset(
             coord::Offset::from_direction(direction),
             &self.0.dimensions
         );
+
+        let mut successful = true;
 
         use gene::ActionType::*;
         match action {
@@ -146,10 +151,22 @@ impl Simulation {
                 if self.exists(facing) {
                     if let tile::Tile::Food(..) = self.get(facing) {
                         self.remove_food_at(facing);
-                        self.add_fitness_at(coord);
+
+                        self.0.update(coord, |tile| {
+                            let mut agent = tile.get_agent().clone();
+                            agent.sate();
+
+                            tile::Tile::Agent(agent)
+                        } );
                     }
                 } else {
-                    self.0.walk_towards(coord, direction);
+                    let old = coord;
+
+                    coord = self.0.walk_towards(coord, direction);
+
+                    if old == coord {
+                        successful = false;
+                    }
                 }
             },
             TurnLeft | TurnRight => {
@@ -166,12 +183,50 @@ impl Simulation {
                 } );
             },
             Kill => {
-                // TODO: Implement Kill
+                if self.exists(facing) {
+                    if let tile::Tile::Agent(..) = self.get(facing) {
+                        let amount = self.get(facing).get_agent().fitness;
+                        self.0.clear(facing);
+
+                        for _ in 0..u8::from(amount) {
+                            self.add_food_at(facing);
+                        }
+
+                    } else {
+                        successful = false;
+                    }
+                } else {
+                    successful = false;
+                }
             },
             ProduceFood => {
-                self.add_food_at(facing);
+                if !self.add_food_at(facing) {
+                    successful = false;
+                }
             }
         }
+
+        self.0.update(coord, |tile| {
+            let mut agent = tile.get_agent().clone();
+            agent.acted(action, successful);
+
+            tile::Tile::Agent(agent)
+        } );
+
+    }
+
+    // assumes Tile is an Agent
+    fn should_die(&self, coord: coord::Coord) -> bool {
+        let fitness = self.get(coord).get_agent().fitness;
+        let starving = self.get(coord).get_agent().starving();
+
+        // Agents have a random chance to die if they are starving
+        // Fitter creatures have a lower chance of dying
+        if thread_rng().gen_range(0..u8::from(ux::u5::MAX)) > u8::from(fitness) && starving {
+            return true;
+        }
+
+        false
     }
 
     // panics if the Tile is not Food or if the Tile does not exist
@@ -201,14 +256,12 @@ impl Simulation {
     // assumes that the Tile is an Agent
     fn add_fitness_at(&mut self, coord: coord::Coord) -> bool {
         let fitness = self.get(coord).get_agent().fitness;
-
         if fitness < ux::u5::MAX {
             self.0.update(coord, |tile| {
                 let mut agent = tile.get_agent().clone();
                 agent.fitness = fitness + ux::u5::new(1);
 
                 tile::Tile::Agent(agent)
-
             } );
 
             return true;
@@ -216,6 +269,27 @@ impl Simulation {
 
         false
     }
+
+    // assumes that Tile is an Agent
+    fn remove_fitness_at(&mut self, coord: coord::Coord) -> bool {
+        let fitness = self.get(coord).get_agent().fitness;
+        if fitness > ux::u5::MIN {
+            self.0.update(coord, |tile| {
+                let mut agent = tile.get_agent().clone();
+                agent.fitness = fitness - ux::u5::new(1);
+
+                tile::Tile::Agent(agent)
+            } );
+
+            return true;
+        }
+
+        false
+    }
+
+    // TODO: There is an inconsistency between the fitness_at and food_at methods
+    //       food_at has safety checks to make sure the Tile is Food
+    //       fitness_at doesn't
 
     fn add_food_at(&mut self, coord: coord::Coord) -> bool {
         if self.exists(coord) {
@@ -284,22 +358,14 @@ impl Simulation {
     pub(crate) fn food(&self) -> Vec<coord::Coord> {
         let mut coords = self.coords();
         coords.drain(0..coords.len()).filter(|coord| {
-            if let tile::Tile::Food(..) = self.get(coord.clone()) {
-                true
-            } else {
-                false
-            }
+            matches!(self.get(*coord), tile::Tile::Food(..))
         } ).collect::<Vec<coord::Coord>>()
     }
 
     pub(crate) fn agents(&self) -> Vec<coord::Coord> {
         let mut coords = self.coords();
         let mut coords = coords.drain(0..coords.len()).filter(|coord| {
-            if let tile::Tile::Agent(..) = self.get(coord.clone()) {
-                true
-            } else {
-                false
-            }
+            matches!(self.get(*coord), tile::Tile::Agent(..))
         } ).collect::<Vec<coord::Coord>>();
 
         coords.sort_by(|first, second| {
