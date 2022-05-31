@@ -64,14 +64,14 @@ impl Simulation {
         // food diffusion
         'topple: loop {
             for coord in self.food() {
-                if self.get(coord).should_topple() {
+                if self.get(coord).should_diffuse() {
                     self.topple(coord);
                 }
             }
 
             let mut invalid = false;
             self.food().drain(0..).for_each(|coord| {
-                if self.get(coord).should_topple() {
+                if self.get(coord).should_diffuse() {
                     invalid = true;
                 }
             } );
@@ -91,10 +91,10 @@ impl Simulation {
         // handle births
         for coord in self.agents() {
             if thread_rng().gen_range(0..u8::from(ux::u5::MAX))
-                < u8::from(self.get(coord).get_agent().fitness) {
+                < u8::from(self.get(coord).agent().fitness) {
                 let child_coord = coord.sample_offset(
                     coord::Offset::from_direction(
-                        self.get(coord).get_agent().direction.opposite()),
+                        self.get(coord).agent().direction.opposite()),
                     &self.0.dimensions
                 );
 
@@ -103,7 +103,7 @@ impl Simulation {
                         agent.fitness = ux::u5::MIN;
                     } );
 
-                    let child = self.get(coord).get_agent().reproduce();
+                    let child = self.get(coord).agent().reproduce();
                     if let Ok(child) = child  {
                         self.0.put(child_coord, tile::Tile::new_agent(child));
                     }
@@ -116,7 +116,7 @@ impl Simulation {
         for coord in self.agents() {
             if self.exists(coord) {
                 if let tile::Tile::Agent(..) = self.get(coord) {
-                    let action = self.get(coord).get_agent().process(&Sense::new());
+                    let action = self.get(coord).agent().process(&Sense::new());
                     if let Some(action) = action { // TODO: Provide Sense struct with required parameters
                         self.act(coord, action);
                     }
@@ -135,7 +135,7 @@ impl Simulation {
     }
 
     fn act(&mut self, mut coord: coord::Coord, action: gene::ActionType) {
-        let direction = self.get(coord).get_agent().direction;
+        let direction = self.get(coord).agent().direction;
         let facing = coord.sample_offset(
             coord::Offset::from_direction(direction),
             &self.0.dimensions
@@ -200,7 +200,7 @@ impl Simulation {
 
     fn kill(&mut self, coord: coord::Coord) {
         if self.0.contains_agent(coord) {
-            let amount = self.get(coord).get_agent().fitness;
+            let amount = self.get(coord).agent().fitness;
             self.0.clear(coord);
 
             for _ in 0..u8::from(amount) {
@@ -215,8 +215,8 @@ impl Simulation {
 
     // assumes Tile is an Agent
     fn should_die(&self, coord: coord::Coord) -> bool {
-        let fitness = self.get(coord).get_agent().fitness;
-        let starving = self.get(coord).get_agent().starving();
+        let fitness = self.get(coord).agent().fitness;
+        let starving = self.get(coord).agent().starving();
 
         // Agents have a random chance to die if they are starving
         // Fitter creatures have a lower chance of dying
@@ -280,6 +280,10 @@ impl Simulation {
         self.0.exists(coord)
     }
 
+    pub(crate) fn contains_agent(&self, coord: coord::Coord) -> bool {
+        self.0.contains_agent(coord)
+    }
+
     pub(crate) fn size(&self) -> iced::Size<usize> {
         self.0.dimensions
     }
@@ -302,8 +306,8 @@ impl Simulation {
         } ).collect::<Vec<coord::Coord>>();
 
         coords.sort_by(|first, second| {
-            let first_fitness = u8::from(self.get(*first).get_agent().fitness);
-            let second_fitness = u8::from(self.get(*second).get_agent().fitness);
+            let first_fitness = u8::from(self.get(*first).agent().fitness);
+            let second_fitness = u8::from(self.get(*second).agent().fitness);
 
             first_fitness.cmp(&second_fitness)
         } );

@@ -226,8 +226,8 @@ impl canvas::Program<Message> for InterfaceCanvas {
         match event {
             Mouse(ButtonPressed(..)) => {
                 if let Some(coord) = self.coord_at(cursor, bounds) {
-                    if self.simulation.borrow().exists(coord) {
-                        let agent = self.simulation.borrow().get(coord).get_agent().clone();
+                    if self.simulation.borrow().contains_agent(coord) {
+                        let agent = self.simulation.borrow().get(coord).agent().clone();
                         message = Some(InspectorTarget(agent))
                     }
                 }
