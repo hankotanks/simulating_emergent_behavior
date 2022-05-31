@@ -1,29 +1,76 @@
 pub(crate) mod coord;
 
+use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::fmt;
 use std::collections::HashMap;
 
 use coord::Coord;
+use crate::agent::Agent;
 
 #[derive(Clone)]
 pub(crate) enum Tile {
-    Agent(crate::agent::Agent),
-    Food(ux::u3),
-    Wall
+    Agent(RefCell<Agent>),
+    Food(Cell<u8>)
 }
 
 impl Tile {
-    pub(crate) fn get_food_amount(&self) -> ux::u3 {
+    pub(crate) const DIFFUSION_THRESHOLD: u8 = 4; // food diffuses above this value
+
+    pub(crate) fn new_agent(agent: Agent) -> Tile {
+        Self::Agent(RefCell::new(agent))
+    }
+
+    pub(crate) fn food(&self) -> u8 {
         if let Self::Food(amount) = self {
-            return *amount;
+            return amount.get();
         }
 
         panic!()
     }
 
-    pub(crate) fn get_agent(&self) -> &crate::agent::Agent {
+    pub(crate) fn new_food(amount: u8) -> Tile {
+        Self::Food(Cell::new(amount))
+    }
+
+    pub(crate) fn add_food(&self) {
+        if let Self::Food(amount) = self {
+            amount.set(amount.get() + 1);
+            return;
+        }
+
+        panic!()
+    }
+
+    pub(crate) fn should_topple(&self) -> bool {
+        self.food() > Self::DIFFUSION_THRESHOLD
+    }
+
+    /// Removes food, returns true if empty
+    pub(crate) fn remove_food(&self) -> bool {
+        if let Self::Food(amount) = self {
+            return if amount.get() == 1 {
+                true
+            } else {
+                amount.set(amount.get() - 1);
+                false
+            }
+        }
+
+        panic!()
+    }
+
+    pub(crate) fn get_agent(&self) -> Ref<'_, Agent> {
         if let Self::Agent(agent) = self {
-            return agent;
+            return agent.borrow();
+        }
+
+        panic!()
+    }
+
+    pub(crate) fn update_agent<F>(&self, f: F) where F: Fn(RefMut<'_, Agent>) {
+        if let Self::Agent(agent) = self {
+            f(agent.borrow_mut());
+            return;
         }
 
         panic!()
@@ -34,9 +81,8 @@ impl fmt::Debug for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Tile::*;
         write!(f, "{}", match self {
-            Food(amount) => format!("Food ({})", *amount),
-            Agent(agent) => format!("{}", agent),
-            Wall => String::from("Wall")
+            Food(amount) => format!("Food ({})", amount.get()),
+            Agent(..) => format!("{}", self.get_agent())
         } )
     }
 }
@@ -71,7 +117,7 @@ impl TileMap {
     }
 
     /// Returns true if a Tile is present at the Coord
-    /// Should be used before methods like get, update & walk in situations where a Tile's presence isn't guaranteed
+    /// Should be used before methods like get & walk in situations where a Tile's presence isn't guaranteed
     pub(crate) fn exists(&self, coord: Coord) -> bool {
         if let Some(..) = self.tiles.get(&coord) {
             return true;
@@ -80,13 +126,20 @@ impl TileMap {
         false
     }
 
-    /// Provides a Tile to the closure, updates the Tile with the closure's return
-    /// Can panic if the Tile does not exist at the given Coord
-    pub(crate) fn update<F>(&mut self, coord: Coord, f: F) where F: Fn(Tile) -> Tile {
-        let target = self.get(coord).clone();
-        let target = f(target);
+    pub(crate) fn contains_agent(&self, coord: Coord) -> bool {
+        if !self.exists(coord) {
+            return false;
+        }
 
-        self.put(coord, target);
+        matches!(self.get(coord), Tile::Agent(..))
+    }
+
+    pub(crate) fn contains_food(&self, coord: Coord) -> bool {
+        if !self.exists(coord) {
+            return false;
+        }
+
+        matches!(self.get(coord), Tile::Food(..))
     }
 
     pub(crate) fn clear(&mut self, coord: Coord) -> Option<Tile> {

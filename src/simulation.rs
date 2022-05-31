@@ -15,7 +15,7 @@ pub(crate) struct SimulationSettings {
 impl Default for SimulationSettings {
     fn default() -> Self {
         Self {
-            dimensions: iced::Size::new(64, 64),
+            dimensions: iced::Size::new(32, 32),
             agents: 32,
             complexity: 64,
             seed: None
@@ -50,7 +50,7 @@ impl Simulation {
                         );
 
                         if !t.exists(coord) {
-                            t.put(coord, tile::Tile::Agent(agent));
+                            t.put(coord, tile::Tile::new_agent(agent));
                             break 'occupied;
                         }
                     }
@@ -64,14 +64,14 @@ impl Simulation {
         // food diffusion
         'topple: loop {
             for coord in self.food() {
-                if self.should_topple(coord) {
+                if self.get(coord).should_topple() {
                     self.topple(coord);
                 }
             }
 
             let mut invalid = false;
             self.food().drain(0..).for_each(|coord| {
-                if self.should_topple(coord) {
+                if self.get(coord).should_topple() {
                     invalid = true;
                 }
             } );
@@ -99,15 +99,13 @@ impl Simulation {
                 );
 
                 if !self.exists(child_coord) {
-                    self.0.update(coord, |tile| {
-                        let mut parent = tile.get_agent().clone();
-                        parent.fitness = ux::u5::MIN;
-
-                        tile::Tile::Agent(parent)
+                    self.get(coord).update_agent(|mut agent| {
+                        agent.fitness = ux::u5::MIN;
                     } );
 
-                    if let Ok(child) = self.get(coord).get_agent().reproduce() {
-                        self.0.put(child_coord, tile::Tile::Agent(child));
+                    let child = self.get(coord).get_agent().reproduce();
+                    if let Ok(child) = child  {
+                        self.0.put(child_coord, tile::Tile::new_agent(child));
                     }
                 }
 
@@ -117,8 +115,9 @@ impl Simulation {
         // agents perform actions
         for coord in self.agents() {
             if self.exists(coord) {
-                if let tile::Tile::Agent(agent) = self.get(coord) {
-                    if let Some(action) = agent.process(&Sense::new()) { // TODO: Provide Sense struct with required parameters
+                if let tile::Tile::Agent(..) = self.get(coord) {
+                    let action = self.get(coord).get_agent().process(&Sense::new());
+                    if let Some(action) = action { // TODO: Provide Sense struct with required parameters
                         self.act(coord, action);
                     }
 
@@ -128,8 +127,7 @@ impl Simulation {
 
         // food randomly decays
         for coord in self.food() {
-            if thread_rng().gen_range(0..u8::from(ux::u3::MAX)) ==
-                u8::from(self.0.get(coord).get_food_amount()) {
+            if thread_rng().gen_range(0..=tile::Tile::DIFFUSION_THRESHOLD) == self.get(coord).food() {
                 self.remove_food_at(coord);
             }
         }
@@ -148,18 +146,8 @@ impl Simulation {
         use gene::ActionType::*;
         match action {
             Move => {
-                if self.exists(facing) {
-                    if let tile::Tile::Food(..) = self.get(facing) {
-                        self.remove_food_at(facing);
+                if !self.exists(facing) {
 
-                        self.0.update(coord, |tile| {
-                            let mut agent = tile.get_agent().clone();
-                            agent.sate();
-
-                            tile::Tile::Agent(agent)
-                        } );
-                    }
-                } else {
                     let old = coord;
 
                     coord = self.0.walk_towards(coord, direction);
@@ -167,19 +155,24 @@ impl Simulation {
                     if old == coord {
                         successful = false;
                     }
+
+                } else if self.0.contains_food(facing) {
+                    self.remove_food_at(facing);
+
+                    self.get(coord).update_agent(|mut agent| {
+                        agent.sate();
+                    } );
+
+
                 }
             },
             TurnLeft | TurnRight => {
-                self.0.update(coord, |tile| {
-                    let mut agent = tile.get_agent().clone();
-
+                self.get(coord).update_agent(|mut agent| {
                     agent.direction = match action {
                         TurnLeft => agent.direction.left(),
                         TurnRight => agent.direction.right(),
                         _ => unreachable!()
                     };
-
-                    tile::Tile::Agent(agent)
                 } );
             },
             Kill => {
@@ -206,13 +199,9 @@ impl Simulation {
             }
         }
 
-        self.0.update(coord, |tile| {
-            let mut agent = tile.get_agent().clone();
+        self.get(coord).update_agent(|mut agent| {
             agent.acted(action, successful);
-
-            tile::Tile::Agent(agent)
         } );
-
     }
 
     // assumes Tile is an Agent
@@ -229,105 +218,40 @@ impl Simulation {
         false
     }
 
-    // panics if the Tile is not Food or if the Tile does not exist
-    fn should_topple(&self, coord: coord::Coord) -> bool {
-        if self.get(coord).get_food_amount() > ux::u3::new(4) {
-            return true;
-        }
-
-        false
-    }
-
     fn topple(&mut self, coord: coord::Coord) {
-        let mut count = 0;
         for neighbor in coord.neighbors(&self.0.dimensions) {
-            if self.add_food_at(neighbor) {
-                count += 1;
-            }
-        }
-
-        for _ in 0..count {
-            if !self.remove_food_at(coord) {
+            self.add_food_at(neighbor);
+            if self.remove_food_at(coord) {
                 break;
             }
         }
     }
 
-    // assumes that the Tile is an Agent
-    fn add_fitness_at(&mut self, coord: coord::Coord) -> bool {
-        let fitness = self.get(coord).get_agent().fitness;
-        if fitness < ux::u5::MAX {
-            self.0.update(coord, |tile| {
-                let mut agent = tile.get_agent().clone();
-                agent.fitness = fitness + ux::u5::new(1);
-
-                tile::Tile::Agent(agent)
-            } );
-
-            return true;
-        }
-
-        false
-    }
-
-    // assumes that Tile is an Agent
-    fn remove_fitness_at(&mut self, coord: coord::Coord) -> bool {
-        let fitness = self.get(coord).get_agent().fitness;
-        if fitness > ux::u5::MIN {
-            self.0.update(coord, |tile| {
-                let mut agent = tile.get_agent().clone();
-                agent.fitness = fitness - ux::u5::new(1);
-
-                tile::Tile::Agent(agent)
-            } );
-
-            return true;
-        }
-
-        false
-    }
-
-    // TODO: There is an inconsistency between the fitness_at and food_at methods
-    //       food_at has safety checks to make sure the Tile is Food
-    //       fitness_at doesn't
-
+    // returns true if food was successfully added
     fn add_food_at(&mut self, coord: coord::Coord) -> bool {
-        if self.exists(coord) {
-            if let tile::Tile::Food(amount) = self.get(coord).clone() {
-                if amount < ux::u3::MAX {
-                    self.0.update(coord, |_| {
-                        tile::Tile::Food(amount + ux::u3::new(1))
-                    } );
-
-                    return true;
-                }
-            }
-
-        } else {
-            self.0.put(coord, tile::Tile::Food(ux::u3::new(1)));
-
+        if self.0.contains_food(coord) {
+            self.get(coord).add_food();
+            return true;
+        } else if !self.exists(coord) {
+            self.0.put(coord, tile::Tile::new_food(1));
             return true;
         }
 
         false
     }
 
+    // returns true if the tile is removed
     fn remove_food_at(&mut self, coord: coord::Coord) -> bool {
-        if self.exists(coord) {
-            if let tile::Tile::Food(amount) = self.get(coord).clone() {
-                if amount == ux::u3::new(1) {
-                    self.0.clear(coord);
-                } else {
-                    self.0.update(coord, |_| {
-                        tile::Tile::Food(amount - ux::u3::new(1))
-                    } );
-                }
-
+        if self.0.contains_food(coord) {
+            if self.get(coord).remove_food() {
+                self.0.clear(coord);
                 return true;
             }
+
+            return false;
         }
 
-        false
+        panic!()
     }
 }
 

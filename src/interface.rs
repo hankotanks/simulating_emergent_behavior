@@ -181,8 +181,7 @@ impl InterfaceCanvas {
 
 // Colors
 impl InterfaceCanvas {
-    const COLOR_WALL: [u8; 3] = [0x00, 0x00, 0x00];
-    const COLOR_FOOD: [u8; 3] = [0xFF, 0x64, 0x64];
+    const COLOR_FOOD: [u8; 3] = [0xFF, 0x50, 0x50];
     const COLOR_AGENT: [u8; 3] = [0x64, 0x64, 0xFF];
     const COLOR_EMPTY: [u8; 3] = [0x1A, 0x1A, 0x1A];
 
@@ -198,12 +197,11 @@ impl InterfaceCanvas {
         use tile::Tile::*;
         match tile.unwrap() {
             Agent(..) => iced::Color::from(to_color(Self::COLOR_AGENT)),
-            Food(amount) => iced::Color::from_rgba8(
+            Food(..) => iced::Color::from_rgba8(
                 Self::COLOR_FOOD[0],
                 Self::COLOR_FOOD[1],
                 Self::COLOR_FOOD[2],
-                u8::from(*amount) as f32 / u8::from(ux::u3::MAX) as f32),
-            Wall => iced::Color::from(to_color(Self::COLOR_WALL))
+                tile.unwrap().food() as f32 / tile::Tile::DIFFUSION_THRESHOLD as f32)
         }
     }
 }
