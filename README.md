@@ -22,18 +22,16 @@ The simulation runs generation by generation according to a simple set of [rules
 
 #### Creatures
 
-Creatures have 2 principal attributes that effect their reproduction and death cycles.
+Creatures have two stats that control their life cycle.  
+Fitness starts at 0 and increases upon eating. Eating refills a creature's energy, taking actions depletes it.
 
-*Nutrition:* 
-Refills after eating. 
-Consumed gradually by actions. 
-When no nutrition remains, the creature is starving, and has a chance to die. 
-This chance is proportional to the creature's fitness...
-
-*Fitness:* 
-Increases through eating or producing food. 
-Affects chance of reproduction. 
-Fitness is reset after a creature reproduces.
+- Eating raises fitness and refills a creature's energy
+- Creatures have a chance to reproduce when their fitness exceeds a certain threshold value R
+- Reproducing resets fitness back to R - 1
+- Actions deplete energy; creatures are considered starving when no energy remains
+- Producing food completely depletes a creature's energy
+- Starving creatures lose fitness each turn (unless they produced food that turn)
+- Starving creatures die if they are not fit enough to reproduce
 
 #### Simulation Rules
 
@@ -42,9 +40,8 @@ The simulation space is a 2D grid of cells, each of which can contain either an 
 1. Creatures cannot move through walls
 2. Food diffuses to adjacent space over time (resembles the [Abelian sandpile model](https://en.wikipedia.org/wiki/Abelian_sandpile_model))
 3. Food gradually decays over time
-4. Every turn, each creature takes an action
-5. Creatures with the highest fitness act first
-6. Offspring undergo mutations, differentiating them from their parent
+4. Every turn, each creature takes an action. Creatures with the highest fitness act first
+6. Offspring undergo mutations, differentiating them from their parent. Mutations can either modify, add or remove genes
 7. When a creature dies, it becomes food, proportional to its fitness
 
 #### Genes
