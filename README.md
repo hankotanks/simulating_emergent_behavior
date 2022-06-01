@@ -23,14 +23,14 @@ The simulation runs generation by generation according to a simple set of [rules
 #### Creatures
 
 Creatures have two stats that control their life cycle.  
-Fitness starts at 0 and increases upon eating. Eating refills a creature's energy, taking actions depletes it.
+Fitness starts at 0 and increases upon eating. Eating refills a creature's energy, taking actions depletes it.  
+Other rules are included below: 
 
-- Eating raises fitness and refills a creature's energy
 - Creatures have a chance to reproduce when their fitness exceeds a certain threshold value
 - Reproducing reduces fitness to the threshold
-- Actions deplete energy; creatures are considered starving when no energy remains
 - Producing food completely depletes a creature's energy
-- Starving creatures lose fitness each turn (unless they produced food that turn)
+- When no energy is left, a creature is considered starving
+- Starving creatures lose fitness each turn (unless they just produced food)
 - Starving creatures die if they are not fit enough to reproduce
 
 #### Simulation Rules
