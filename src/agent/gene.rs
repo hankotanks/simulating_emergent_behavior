@@ -80,9 +80,22 @@ impl fmt::Display for Gene {
 pub(crate) struct Genome;
 
 impl Genome {
+    const MUTATION_FREQUENCY: f32 = 0.15;
+
     pub(crate) fn mutate(mut genome: Vec<Gene>) -> String {
-        let length = genome.len();
-        genome[thread_rng().gen_range(0..length)].mutate();
+        if thread_rng().gen_range(0..100) as f32 / 100f32 < Self::MUTATION_FREQUENCY {
+            if thread_rng().gen_bool(0.5f64) {
+                genome.push(Gene::new(thread_rng().gen_range(0..=255)));
+            } else {
+                genome.remove(thread_rng().gen_range(0..genome.len()));
+            }
+
+        } else {
+            let length = genome.len();
+            for _ in 0..(length as f32 * Self::MUTATION_FREQUENCY) as usize {
+                genome[thread_rng().gen_range(0..length)].mutate();
+            }
+        }
 
         Genome::get(genome)
     }

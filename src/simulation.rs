@@ -26,7 +26,7 @@ impl Default for SimulationSettings {
         Self {
             dimensions: iced::Size::new(64, 64),
             agents: 128,
-            complexity: 64,
+            complexity: 32,
             seed: None
         }
     }
@@ -35,7 +35,7 @@ impl Default for SimulationSettings {
 pub(crate) struct Simulation(tile::TileMap);
 
 impl Simulation {
-    const REPRODUCTION_THRESHOLD: ux::u5 = ux::u5::new(8); // TODO: This should be derived from the ux::u5::MAX const
+    const REPRODUCTION_THRESHOLD: ux::u5 = ux::u5::new(8);
 
     pub(crate) fn new(settings: SimulationSettings) -> Self {
         let mut prng: rand::rngs::StdRng = match settings.seed {
@@ -127,8 +127,11 @@ impl Simulation {
         for coord in self.agents() {
             if self.exists(coord) {
                 if let tile::Tile::Agent(..) = self.get(coord) {
-                    let action = self.get(coord).agent().process(&Sense::new());
-                    if let Some(action) = action { // TODO: Provide Sense struct with required parameters
+                    let action = self.get(coord).agent().process(
+                        &Sense::new(&self.0, coord)
+                    );
+
+                    if let Some(action) = action {
                         self.act(coord, action);
                     }
                 }
@@ -307,14 +310,105 @@ impl Simulation {
     }
 }
 
-pub(crate) struct Sense;
+/*
+
+0: empty tile
+1: agent
+2: food
+
+ */
+
+pub(crate) struct Sense {
+    visible_tiles: Vec<u8>,
+    direction: agent::Direction
+}
 
 impl Sense {
-    pub(crate) fn new() -> Self {
-        Self {  }
+    const VISION_DISTANCE: usize = 6;
+
+    pub(crate) fn new(tiles: &tile::TileMap, mut coord: coord::Coord) -> Self {
+        let direction = tiles.get(coord).agent().direction;
+
+        Self {
+            visible_tiles: {
+                let mut visible_tiles = Vec::new();
+                for _ in 0..Self::VISION_DISTANCE {
+                    coord.apply_offset(
+                        coord::Offset::from_direction(direction),
+                        &tiles.dimensions
+                    );
+
+                    visible_tiles.push(
+                        if tiles.exists(coord) {
+                            match tiles.get(coord) {
+                                tile::Tile::Agent(..) => 1,
+                                tile::Tile::Food(..) => 2
+                            }
+                        } else {
+                            0
+                        }
+                    );
+                }
+
+                visible_tiles
+            },
+            direction
+        }
     }
 
-    pub(crate) fn get(&self, _sense: &gene::SenseType) -> f32 {
-        thread_rng().gen_range(0..100) as f32 / 100f32
+    pub(crate) fn get(&self, sense: &gene::SenseType) -> f32 {
+        use gene::SenseType::*;
+        match sense {
+            Blocked => {
+                if self.visible_tiles[0] == 1 {
+                    1f32
+                } else {
+                    0f32
+                }
+            },
+            Agent => {
+                if self.visible_tiles[0] == 1 {
+                    1f32
+                } else {
+                    0f32
+                }
+            },
+            AgentDensity => {
+                let mut count = 0;
+                for tile in self.visible_tiles.iter() {
+                    if *tile == 1 {
+                        count += 1;
+                    }
+                }
+
+                count as f32 / Self::VISION_DISTANCE as f32
+            },
+            Food => {
+                if self.visible_tiles[0] == 2 {
+                    1f32
+                } else {
+                    0f32
+                }
+            },
+            FoodDensity => {
+                let mut count = 0;
+                for tile in self.visible_tiles.iter() {
+                    if *tile == 2 {
+                        count += 1;
+                    }
+                }
+
+                count as f32 / Self::VISION_DISTANCE as f32
+            },
+            Direction => {
+                use agent::Direction::*;
+                match self.direction {
+                    Up => 0f32,
+                    Right => 0.33f32,
+                    Down => 0.66f32,
+                    Left => 1f32
+                }
+            }
+        }
     }
 }
