@@ -83,7 +83,7 @@ pub(crate) struct Agent {
     pub(crate) fitness: ux::u5,
     pub(crate) direction: Direction,
     pub(crate) history: Vec<gene::ActionType>,
-    pub(crate) nutrition: ux::u5
+    pub(crate) energy: ux::u5
 }
 
 impl Agent {
@@ -149,10 +149,10 @@ impl Agent {
         let mut agent = Self {
             brain,
             genome,
-            fitness: ux::u5::MIN,
+            fitness: ux::u5::new(thread_rng().gen_range(0..=15)),
             direction: Direction::default(),
             history: Vec::new(),
-            nutrition: ux::u5::MAX,
+            energy: ux::u5::MAX,
         };
 
         let mut retain: Vec<NodeIndex> = Vec::new();
@@ -279,33 +279,47 @@ impl Agent {
         }
     }
 
-    pub(crate) fn acted(&mut self, action: gene::ActionType, successful: bool) {
-        if self.nutrition > ux::u5::MIN {
-            self.nutrition = self.nutrition - ux::u5::new(1);
+    pub(crate) fn acted(&mut self, action: gene::ActionType) {
+        // actions reduce energy
+        if self.energy > ux::u5::MIN {
+            self.energy = self.energy - ux::u5::new(1);
+
+        } else if self.energy == ux::u5::MIN
+            && self.fitness > ux::u5::MIN
+            && !matches!(action, gene::ActionType::ProduceFood) {
+
+            // creatures lose fitness if they have no energy and did not produce food this turn
+            self.fitness = self.fitness - ux::u5::new(1);
         }
 
-        // Producing food sates the creature that made it
-        if matches!(action, gene::ActionType::ProduceFood) && successful {
-            self.sate();
+        // Producing food completely depletes the Agent's energy
+        if matches!(action, gene::ActionType::ProduceFood) {
+            self.energy = ux::u5::MIN;
         }
 
+        // truncate the creature's action history
+        // its behavior can be generalized without a completely log of its actions
         if self.history.len() > Self::HISTORY_SIZE {
             self.history.pop();
         }
 
+        // append the action to the creature's history
         self.history.insert(0, action)
     }
 
+    // Agents are sated upon eating food
+    // This refills their energy and increases their fitness
     pub(crate) fn sate(&mut self) {
-        self.nutrition = ux::u5::MAX;
+        self.energy = ux::u5::MAX;
 
         if self.fitness < ux::u5::MAX {
             self.fitness = self.fitness + ux::u5::new(1);
         }
     }
 
+    // Agents are considered starving when they are out of energy
     pub(crate) fn starving(&self) -> bool {
-        self.nutrition == ux::u5::MIN
+        self.energy == ux::u5::MIN
     }
 }
 

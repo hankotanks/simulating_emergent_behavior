@@ -5,6 +5,15 @@ use crate::tile::coord;
 use crate::agent;
 use crate::agent::gene;
 
+/*
+Eating raises fitness and refills a creatures energy.
+Creatures have a chance to reproduce when their fitness exceeds a certain threshold value R.
+Reproducing resets fitness back to R - 1.
+Actions deplete energy; creatures are considered starving when no energy remains.
+Producing food completely depletes a creature's energy.
+Starving creatures lose fitness each turn (unless they produced food that turn).
+ */
+
 pub(crate) struct SimulationSettings {
     dimensions: iced::Size<usize>,
     agents: usize,
@@ -15,8 +24,8 @@ pub(crate) struct SimulationSettings {
 impl Default for SimulationSettings {
     fn default() -> Self {
         Self {
-            dimensions: iced::Size::new(32, 32),
-            agents: 32,
+            dimensions: iced::Size::new(64, 64),
+            agents: 128,
             complexity: 64,
             seed: None
         }
@@ -26,6 +35,8 @@ impl Default for SimulationSettings {
 pub(crate) struct Simulation(tile::TileMap);
 
 impl Simulation {
+    const REPRODUCTION_THRESHOLD: ux::u5 = ux::u5::new(8); // TODO: This should be derived from the ux::u5::MAX const
+
     pub(crate) fn new(settings: SimulationSettings) -> Self {
         let mut prng: rand::rngs::StdRng = match settings.seed {
             Some(s) => rand::SeedableRng::seed_from_u64(s),
@@ -90,7 +101,7 @@ impl Simulation {
 
         // handle births
         for coord in self.agents() {
-            if thread_rng().gen_range(0..u8::from(ux::u5::MAX))
+            if thread_rng().gen_range(u8::from(Self::REPRODUCTION_THRESHOLD)..u8::from(ux::u5::MAX))
                 < u8::from(self.get(coord).agent().fitness) {
                 let child_coord = coord.sample_offset(
                     coord::Offset::from_direction(
@@ -100,7 +111,7 @@ impl Simulation {
 
                 if !self.exists(child_coord) {
                     self.get(coord).update_agent(|mut agent| {
-                        agent.fitness = ux::u5::MIN;
+                        agent.fitness = Self::REPRODUCTION_THRESHOLD;
                     } );
 
                     let child = self.get(coord).agent().reproduce();
@@ -120,7 +131,6 @@ impl Simulation {
                     if let Some(action) = action { // TODO: Provide Sense struct with required parameters
                         self.act(coord, action);
                     }
-
                 }
             }
         }
@@ -141,20 +151,11 @@ impl Simulation {
             &self.0.dimensions
         );
 
-        let mut successful = true;
-
         use gene::ActionType::*;
         match action {
             Move => {
                 if !self.exists(facing) {
-
-                    let old = coord;
-
                     coord = self.0.walk_towards(coord, direction);
-
-                    if old == coord {
-                        successful = false;
-                    }
 
                 } else if self.0.contains_food(facing) {
                     self.remove_food_at(facing);
@@ -162,8 +163,6 @@ impl Simulation {
                     self.get(coord).update_agent(|mut agent| {
                         agent.sate();
                     } );
-
-
                 }
             },
             TurnLeft | TurnRight => {
@@ -176,25 +175,17 @@ impl Simulation {
                 } );
             },
             Kill => {
-                if self.exists(facing) {
-                    if let tile::Tile::Agent(..) = self.get(facing) {
-                        self.kill(facing);
-                    } else {
-                        successful = false;
-                    }
-                } else {
-                    successful = false;
+                if self.exists(facing) && self.contains_agent(facing) {
+                    self.kill(facing);
                 }
             },
             ProduceFood => {
-                if !self.add_food_at(facing) {
-                    successful = false;
-                }
+                self.add_food_at(facing);
             }
         }
 
         self.get(coord).update_agent(|mut agent| {
-            agent.acted(action, successful);
+            agent.acted(action);
         } );
     }
 
@@ -220,7 +211,7 @@ impl Simulation {
 
         // Agents have a random chance to die if they are starving
         // Fitter creatures have a lower chance of dying
-        if thread_rng().gen_range(0..u8::from(ux::u5::MAX)) > u8::from(fitness) && starving {
+        if starving && fitness < Self::REPRODUCTION_THRESHOLD {
             return true;
         }
 
