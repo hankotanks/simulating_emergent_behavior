@@ -80,7 +80,7 @@ impl fmt::Display for Gene {
 pub(crate) struct Genome;
 
 impl Genome {
-    const MUTATION_FREQUENCY: f32 = 0.15;
+    const MUTATION_FREQUENCY: f32 = 0.3;
 
     pub(crate) fn mutate(mut genome: Vec<Gene>) -> String {
         if thread_rng().gen_range(0..100) as f32 / 100f32 < Self::MUTATION_FREQUENCY {

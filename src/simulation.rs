@@ -24,9 +24,9 @@ pub(crate) struct SimulationSettings {
 impl Default for SimulationSettings {
     fn default() -> Self {
         Self {
-            dimensions: iced::Size::new(64, 64),
-            agents: 128,
-            complexity: 32,
+            dimensions: iced::Size::new(32, 32),
+            agents: 64,
+            complexity: 64,
             seed: None
         }
     }
