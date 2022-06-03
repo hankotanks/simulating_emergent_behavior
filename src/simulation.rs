@@ -1,10 +1,12 @@
+use std::fmt;
+use std::fmt::Formatter;
+
 use rand::{Rng, thread_rng};
 
 use crate::tile;
 use crate::tile::coord;
 use crate::agent;
 use crate::agent::gene;
-
 /*
 Eating raises fitness and refills a creatures energy.
 Creatures have a chance to reproduce when their fitness exceeds a certain threshold value R.
@@ -26,7 +28,7 @@ impl Default for SimulationSettings {
         Self {
             dimensions: iced::Size::new(32, 32),
             agents: 64,
-            complexity: 64,
+            complexity: 128,
             seed: None
         }
     }
@@ -410,5 +412,19 @@ impl Sense {
                 }
             }
         }
+    }
+}
+
+impl fmt::Debug for Sense {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use gene::SenseType::*;
+        write!(f, "blocked: {}\nagent: {}\n agent_density: {}\nfood: {}\nfood_density: {}\ndirection: {}",
+            self.get(&Blocked),
+            self.get(&Agent),
+            self.get(&AgentDensity),
+            self.get(&Food),
+            self.get(&FoodDensity),
+            self.get(&Direction)
+        )
     }
 }
